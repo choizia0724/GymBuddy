@@ -4,7 +4,7 @@
 #include <ArduinoJson.h>
 #include "routes.h"
 // #include "nfc.h"
-// #include "laser.h"
+#include "laser.h"
 #include "power.h"
 #include "config.h"
 #include "status_led.h"

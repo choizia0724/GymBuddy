@@ -1,4 +1,6 @@
+#include <Arduino.h>
 #include <driver/ledc.h>
+#include "laser.h"
 
 static int g_pin = 10;
 static int g_ch  = 0;
