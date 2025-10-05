@@ -1,7 +1,11 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <LittleFS.h>
+#include <ArduinoJson.h>
 #include "routes.h"
+#include "nfc.h"
+#include "laser.h"
+#include "power.h"
 
 const char* ssid = "ESP32-AP";
 const char* password = "12345678";
