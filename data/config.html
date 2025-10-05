@@ -1,13 +1,110 @@
 <!DOCTYPE html>
 <html>
-<head><title>Config</title></head>
-<body>
-  <h2>Admin Config</h2>
-  <form action="/save" method="POST">
-    SSID: <input name="ssid"><br>
-    WiFi PW: <input name="wifipw"><br>
-    <input type="submit" value="Save">
-  </form>
-  <a href="/update">Go to OTA</a>
-</body>
+  <head>
+    <title>Config</title>
+  </head>
+  <body>
+    <h2>Configuration</h2>
+    <form action="/save" method="POST">
+      <fieldset>
+        <legend>Access Point</legend>
+        SSID: <input name="apSsid" /><br />
+        Password: <input name="apPass" /><br />
+      </fieldset>
+      <fieldset>
+        <legend>Station</legend>
+        SSID: <input name="staSsid" /><br />
+        Password: <input name="staPass" /><br />
+      </fieldset>
+      <fieldset>
+        <legend>Admin</legend>
+        Username: <input name="adminUser" /><br />
+        Password: <input name="adminPass" /><br />
+      </fieldset>
+      <input type="submit" value="Save" />
+    </form>
+    <section>
+      <h3>Laser Control</h3>
+      <p>Current: <span id="laserStatus">--</span></p>
+      <button type="button" onclick="laserCommand('on')">Laser On</button>
+      <button type="button" onclick="laserCommand('off')">Laser Off</button>
+      <form id="laserForm">
+        <label>Frequency (Hz, 2000-5000)</label>
+        <input
+          type="number"
+          id="laserFreq"
+          name="freq"
+          min="2000"
+          max="5000"
+          value="2000"
+          required
+        />
+        <label>Duty (%)</label>
+        <input
+          type="number"
+          id="laserDuty"
+          name="duty"
+          min="0"
+          max="100"
+          value="70"
+          required
+        />
+        <button type="submit">Apply</button>
+      </form>
+    </section>
+    <a href="/update">Go to OTA</a>
+    <script>
+      async function refreshLaserStatus() {
+        try {
+          const res = await fetch("/laser/status");
+          if (!res.ok) throw new Error("status " + res.status);
+          const data = await res.json();
+          document.getElementById(
+            "laserStatus"
+          ).textContent = `${data.freq} Hz / ${data.duty}%`;
+          document.getElementById("laserFreq").value = data.freq;
+          document.getElementById("laserDuty").value = data.duty;
+        } catch (err) {
+          document.getElementById("laserStatus").textContent = "Unavailable";
+          console.error(err);
+        }
+      }
+
+      async function laserCommand(action) {
+        try {
+          const res = await fetch(`/laser/${action}`, { method: "POST" });
+          if (!res.ok) throw new Error("status " + res.status);
+          await refreshLaserStatus();
+        } catch (err) {
+          alert("Failed to toggle laser: " + err.message);
+        }
+      }
+
+      document
+        .getElementById("laserForm")
+        .addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const freq = document.getElementById("laserFreq").value;
+          const duty = document.getElementById("laserDuty").value;
+          try {
+            const res = await fetch("/laser/set", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: `freq=${encodeURIComponent(freq)}&duty=${encodeURIComponent(
+                duty
+              )}`,
+            });
+            if (!res.ok) {
+              const text = await res.text();
+              throw new Error(text || "status " + res.status);
+            }
+            await refreshLaserStatus();
+          } catch (err) {
+            alert("Failed to update laser: " + err.message);
+          }
+        });
+
+      refreshLaserStatus();
+    </script>
+  </body>
 </html>

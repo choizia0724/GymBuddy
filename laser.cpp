@@ -2,8 +2,8 @@
 
 static int g_pin = 10;
 static int g_ch  = 0;
-static uint8_t  g_dutyPct = 70;
-static uint32_t g_freqHz  = 2000;
+static uint8_t  g_dutyPct = Laser::DEFAULT_DUTY;
+static uint32_t g_freqHz  = Laser::DEFAULT_FREQ;
 static const int RES_BITS = 10; // 0~1023
 
 static void apply() {
