@@ -3,8 +3,8 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include "routes.h"
-#include "nfc.h"
-#include "laser.h"
+// #include "nfc.h"
+// #include "laser.h"
 #include "power.h"
 #include "config.h"
 #include "status_led.h"
@@ -69,7 +69,7 @@ namespace {
 void setup() {
   Serial.begin(115200);
 
-  Laser::begin(LASER_EN_PIN, Laser::DEFAULT_FREQ, Laser::DEFAULT_DUTY);
+  // Laser::begin(LASER_EN_PIN, Laser::DEFAULT_FREQ, Laser::DEFAULT_DUTY);
 
   Power::configureChargerPin();
   if (!Power::enableCharging()) {

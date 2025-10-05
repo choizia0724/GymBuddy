@@ -189,7 +189,7 @@ void setupRoutes(WebServer& server, bool& isLoggedIn) {
     file.close();
   });
 
-  server.on("/update", HTTP_POST, []() {
+  server.on("/update", HTTP_POST, [&]() {
     server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
   }, [&]() {
     HTTPUpload& upload = server.upload();

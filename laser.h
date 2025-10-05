@@ -2,7 +2,7 @@
 #include <Arduino.h>
 
 namespace Laser {
-   constexpr uint32_t MIN_FREQ_HZ   = 2000;
+  constexpr uint32_t MIN_FREQ_HZ   = 2000;
   constexpr uint32_t MAX_FREQ_HZ   = 5000;
   constexpr uint8_t  DEFAULT_DUTY  = 70;
   constexpr uint32_t DEFAULT_FREQ  = 2000;
