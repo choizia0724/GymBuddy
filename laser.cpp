@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <driver/ledc.h>
+#include <esp32-hal-ledc.h>
 #include "laser.h"
 
 static int g_pin = 10;
@@ -16,7 +16,7 @@ static void apply() {
 
 void Laser::begin(int pin, uint32_t freqHz, uint8_t dutyPct) {
   g_pin = pin; g_freqHz = freqHz; g_dutyPct = dutyPct;
-  ledcSetup(g_ch, g_freqHz, RES_BITS);
+  double realHz = ledcSetup(g_ch, g_freqHz, RES_BITS);
   ledcAttachPin(g_pin, g_ch);
   apply();
 }
