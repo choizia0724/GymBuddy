@@ -9,7 +9,7 @@ namespace {
   constexpr uint8_t  kDisablePulseCount   = 2;    // Two consecutive pulses disable charging.
   constexpr uint32_t kPostSequenceDelayUs = 500;  // Allow BAT_EN latch to settle.
 
-  int     g_adcPin            = 1; // 보드 실제 분압 연결 핀로 교체 필요!!
+  int     g_adcPin            = 8;
   float   g_vref              = 3.30f;
   float   g_gain              = 2.0f;
   uint8_t g_bits              = 12;

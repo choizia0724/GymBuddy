@@ -12,9 +12,9 @@
 WebServer server(8080);
 bool isLoggedIn = false;
 namespace {
-  constexpr int LASER_EN_PIN = 10; // GPIO routed to laser EN through a 10k/20k divider so the 5V module only sees ~3.3V PWM.
+  constexpr int LASER_EN_PIN = 20; // GPIO routed to laser EN through a 10k/20k divider so the 5V module only sees ~3.3V PWM.
 
-  constexpr int VBAT_ADC_PIN = 1;
+  constexpr int VBAT_ADC_PIN = 8;
 
   void handleSerialLaserCommand() {
     if (!Serial.available()) {
@@ -69,6 +69,9 @@ namespace {
 }
 
 void setup() {
+
+  Serial.println("setup");
+
   Serial.begin(115200);
   Serial.setTimeout(50);
 
@@ -92,10 +95,12 @@ void setup() {
   Serial.println("Access Point started at:");
   Serial.println(WiFi.softAPIP());
 
-  if (!LittleFS.begin()) {
-    Serial.println("LittleFS mount failed");
+  Serial.println("LittleFS mount failed, attempting to format...");
+  if (!LittleFS.begin(true)) {
+    Serial.println("LittleFS format failed");
     return;
   }
+  Serial.println("LittleFS formatted successfully");
 
   setupRoutes(server, isLoggedIn);
   server.begin();
