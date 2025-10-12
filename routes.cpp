@@ -15,20 +15,27 @@ static bool ensureLoggedIn(WebServer& server, bool& isLoggedIn) {
   return false;
 }
 
+static void redirectTo(WebServer& server, const String& path) {
+  server.sendHeader("Location", path, true);
+  server.send(302, "text/plain", "");
+}
+
 static void redirectToLogin(WebServer& server) {
-  server.sendHeader("Location", "/", true);
-  server.send(302, "text/plain","");
+  redirectTo(server, "/");
 }
 
 void setupRoutes(WebServer& server, bool& isLoggedIn) {
   server.on("/", HTTP_GET, [&]() {
     if (!isLoggedIn) {
       File file = LittleFS.open("/login.html", "r");
+      if (!file) {
+        server.send(500, "text/plain", "Missing login page");
+        return;
+      }
       server.streamFile(file, "text/html");
       file.close();
     } else {
-      server.sendHeader("Location", "/config", true);
-      redirectToLogin(server);
+      redirectTo(server, "/config");
     }
   });
 
@@ -81,17 +88,19 @@ void setupRoutes(WebServer& server, bool& isLoggedIn) {
       }
     }
 
-    server.sendHeader("Location", "/config", true);
-    server.send(302, "text/plain", "");
+  redirectTo(server, "/config");
   });
 
   server.on("/config", HTTP_GET, [&]() {
     if (!isLoggedIn) {
-      server.sendHeader("Location", "/", true);
-      server.send(302, "text/plain", "");
+        redirectToLogin(server);
       return;
     }
     File file = LittleFS.open("/config.html", "r");
+     if (!file) {
+      server.send(500, "text/plain", "Missing config page");
+      return;
+    }
     server.streamFile(file, "text/html");
     file.close();
   });
@@ -180,11 +189,14 @@ void setupRoutes(WebServer& server, bool& isLoggedIn) {
   
   server.on("/update", HTTP_GET, [&]() {
     if (!isLoggedIn) {
-      server.sendHeader("Location", "/", true);
-      server.send(302, "text/plain", "");
+      redirectToLogin(server);
       return;
     }
     File file = LittleFS.open("/update.html", "r");
+      if (!file) {
+        server.send(500, "text/plain", "Missing update page");
+        return;
+      }
     server.streamFile(file, "text/html");
     file.close();
   });

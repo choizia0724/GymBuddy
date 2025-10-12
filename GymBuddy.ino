@@ -14,6 +14,8 @@ bool isLoggedIn = false;
 namespace {
   constexpr int LASER_EN_PIN = 10; // GPIO routed to laser EN through a 10k/20k divider so the 5V module only sees ~3.3V PWM.
 
+  constexpr int VBAT_ADC_PIN = 1;
+
   void handleSerialLaserCommand() {
     if (!Serial.available()) {
       return;
@@ -68,9 +70,11 @@ namespace {
 
 void setup() {
   Serial.begin(115200);
+  Serial.setTimeout(50);
 
   Laser::begin(LASER_EN_PIN, Laser::DEFAULT_FREQ, Laser::DEFAULT_DUTY);
-
+  
+  Power::begin(VBAT_ADC_PIN);
   Power::configureChargerPin();
   if (!Power::enableCharging()) {
     Serial.println("Failed to enable charger during boot");
@@ -102,4 +106,6 @@ void setup() {
 void loop() {
   server.handleClient();
   handleSerialLaserCommand();
+  StatusLED::update();
+  delay(1);
 }
