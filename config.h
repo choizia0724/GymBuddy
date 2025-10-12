@@ -4,16 +4,16 @@
 
 struct AppConfig {
   // AP
-  String apSsid     = "ESP32S3-AP";
-  String apPass     = "12345678";   // 8자 이상
+  String apSsid     = "GymBuddy-AP";
+  String apPass     = "11111111";   // 8자 이상
   // STA
-  String staSsid    = "";
+  String staSsid    = "";         
   String staPass    = "";
   // Admin
   String adminUser  = "admin";
   String adminPass  = "admin";
   // 버전/기타
-  uint32_t version  = 1;
+  uint32_t version  = 0.1;
 };
 
 namespace Config {

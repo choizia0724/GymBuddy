@@ -69,7 +69,7 @@ namespace {
 void setup() {
   Serial.begin(115200);
 
-  // Laser::begin(LASER_EN_PIN, Laser::DEFAULT_FREQ, Laser::DEFAULT_DUTY);
+  Laser::begin(LASER_EN_PIN, Laser::DEFAULT_FREQ, Laser::DEFAULT_DUTY);
 
   Power::configureChargerPin();
   if (!Power::enableCharging()) {
