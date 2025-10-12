@@ -17,7 +17,7 @@ static bool ensureLoggedIn(WebServer& server, bool& isLoggedIn) {
 
 static void redirectToLogin(WebServer& server) {
   server.sendHeader("Location", "/", true);
-  redirectToLogin(server);
+  server.send(302, "text/plain","");
 }
 
 void setupRoutes(WebServer& server, bool& isLoggedIn) {
