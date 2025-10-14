@@ -25,46 +25,49 @@ static void redirectToLogin(WebServer& server) {
 }
 
 void setupRoutes(WebServer& server, bool& isLoggedIn) {
-  server.on("/", HTTP_GET, [&]() {
-    if (!isLoggedIn) {
+  WebServer* srv = &server;
+  bool* loginFlag = &isLoggedIn;
+
+  srv->on("/", HTTP_GET, [srv, loginFlag]() {
+    if (!*loginFlag) {
       File file = LittleFS.open("/login.html", "r");
       if (!file) {
-        server.send(500, "text/plain", "Missing login page");
+        srv->send(500, "text/plain", "Missing login page");
         return;
       }
-      server.streamFile(file, "text/html");
+      srv->streamFile(file, "text/html");
       file.close();
     } else {
-      redirectTo(server, "/config");
+      redirectTo(*srv, "/config");
     }
   });
 
-  server.on("/login", HTTP_POST, [&]() {
-     auto cfg = Config::get();
-    if (server.arg("user") == cfg.adminUser && server.arg("pass") == cfg.adminPass) {
-      isLoggedIn = true;
-      server.sendHeader("Location", "/config", true);
-      server.send(302, "text/plain", "");
+  srv->on("/login", HTTP_POST, [srv, loginFlag]() {
+    auto cfg = Config::get();
+    if (srv->arg("user") == cfg.adminUser && srv->arg("pass") == cfg.adminPass) {
+      *loginFlag = true;
+      srv->sendHeader("Location", "/config", true);
+      srv->send(302, "text/plain", "");
     } else {
-      server.send(401, "text/plain", "Unauthorized");
+      srv->send(401, "text/plain", "Unauthorized");
     }
   });
 
-  server.on("/save", HTTP_POST, [&]() {
-    if (!isLoggedIn) {
-      server.send(401, "text/plain", "Unauthorized");
+  srv->on("/save", HTTP_POST, [srv, loginFlag]() {
+    if (!*loginFlag) {
+      srv->send(401, "text/plain", "Unauthorized");
       return;
     }
 
     auto current = Config::get();
     AppConfig updated = current;
 
-    if (server.hasArg("apSsid")) updated.apSsid = server.arg("apSsid");
-    if (server.hasArg("apPass")) updated.apPass = server.arg("apPass");
-    if (server.hasArg("staSsid")) updated.staSsid = server.arg("staSsid");
-    if (server.hasArg("staPass")) updated.staPass = server.arg("staPass");
-    if (server.hasArg("adminUser")) updated.adminUser = server.arg("adminUser");
-    if (server.hasArg("adminPass")) updated.adminPass = server.arg("adminPass");
+    if (srv->hasArg("apSsid")) updated.apSsid = srv->arg("apSsid");
+    if (srv->hasArg("apPass")) updated.apPass = srv->arg("apPass");
+    if (srv->hasArg("staSsid")) updated.staSsid = srv->arg("staSsid");
+    if (srv->hasArg("staPass")) updated.staPass = srv->arg("staPass");
+    if (srv->hasArg("adminUser")) updated.adminUser = srv->arg("adminUser");
+    if (srv->hasArg("adminPass")) updated.adminPass = srv->arg("adminPass");
 
     bool apChanged = (updated.apSsid != current.apSsid) || (updated.apPass != current.apPass);
     bool staChanged = (updated.staSsid != current.staSsid) || (updated.staPass != current.staPass);
@@ -88,134 +91,134 @@ void setupRoutes(WebServer& server, bool& isLoggedIn) {
       }
     }
 
-  redirectTo(server, "/config");
+    redirectTo(*srv, "/config");
   });
 
-  server.on("/config", HTTP_GET, [&]() {
-    if (!isLoggedIn) {
-        redirectToLogin(server);
+  srv->on("/config", HTTP_GET, [srv, loginFlag]() {
+    if (!*loginFlag) {
+      redirectToLogin(*srv);
       return;
     }
     File file = LittleFS.open("/config.html", "r");
-     if (!file) {
-      server.send(500, "text/plain", "Missing config page");
+    if (!file) {
+      srv->send(500, "text/plain", "Missing config page");
       return;
     }
-    server.streamFile(file, "text/html");
+    srv->streamFile(file, "text/html");
     file.close();
   });
 
-  server.on("/charger", HTTP_POST, [&]() {
-    if (!isLoggedIn) {
-      server.sendHeader("Location", "/", true);
-      server.send(302, "text/plain", "");
+  srv->on("/charger", HTTP_POST, [srv, loginFlag]() {
+    if (!*loginFlag) {
+      srv->sendHeader("Location", "/", true);
+      srv->send(302, "text/plain", "");
       return;
     }
 
-    if (!server.hasArg("state")) {
-      server.send(400, "text/plain", "Missing 'state' parameter");
+    if (!srv->hasArg("state")) {
+      srv->send(400, "text/plain", "Missing 'state' parameter");
       return;
     }
 
-    String state = server.arg("state");
+    String state = srv->arg("state");
     bool   ok    = false;
     if (state == "on") {
       ok = Power::enableCharging();
     } else if (state == "off") {
       ok = Power::disableCharging();
     } else {
-      server.send(400, "text/plain", "Invalid state; use 'on' or 'off'");
+      srv->send(400, "text/plain", "Invalid state; use 'on' or 'off'");
       return;
     }
 
     if (!ok) {
-      server.send(500, "text/plain", "Failed to update charger state");
+      srv->send(500, "text/plain", "Failed to update charger state");
       return;
     }
 
-    server.send(200, "text/plain", Power::isChargingEnabled() ? "charging" : "idle");
+    srv->send(200, "text/plain", Power::isChargingEnabled() ? "charging" : "idle");
   });
 
-  server.on("/laser/on", HTTP_POST, [&]() {
-    if (!ensureLoggedIn(server, isLoggedIn)) {
+  srv->on("/laser/on", HTTP_POST, [srv, loginFlag]() {
+    if (!ensureLoggedIn(*srv, *loginFlag)) {
       return;
     }
     Laser::on();
-    server.send(200, "application/json", "{\"state\":\"on\",\"freq\":" + String(Laser::freq()) + ",\"duty\":" + String(Laser::duty()) + "}");
+    srv->send(200, "application/json", "{\"state\":\"on\",\"freq\":" + String(Laser::freq()) + ",\"duty\":" + String(Laser::duty()) + "}");
   });
 
-  server.on("/laser/off", HTTP_POST, [&]() {
-    if (!ensureLoggedIn(server, isLoggedIn)) {
+  srv->on("/laser/off", HTTP_POST, [srv, loginFlag]() {
+    if (!ensureLoggedIn(*srv, *loginFlag)) {
       return;
     }
     Laser::off();
-    server.send(200, "application/json", "{\"state\":\"off\"}");
+    srv->send(200, "application/json", "{\"state\":\"off\"}");
   });
 
-  server.on("/laser/set", HTTP_POST, [&]() {
-    if (!ensureLoggedIn(server, isLoggedIn)) {
+  srv->on("/laser/set", HTTP_POST, [srv, loginFlag]() {
+    if (!ensureLoggedIn(*srv, *loginFlag)) {
       return;
     }
-    if (!server.hasArg("freq") || !server.hasArg("duty")) {
-      server.send(400, "text/plain", "Missing freq or duty");
+    if (!srv->hasArg("freq") || !srv->hasArg("duty")) {
+      srv->send(400, "text/plain", "Missing freq or duty");
       return;
     }
 
-    long freq = server.arg("freq").toInt();
-    long duty = server.arg("duty").toInt();
+    long freq = srv->arg("freq").toInt();
+    long duty = srv->arg("duty").toInt();
 
     if (freq < (long)Laser::MIN_FREQ_HZ || freq > (long)Laser::MAX_FREQ_HZ) {
-      server.send(400, "text/plain", "Frequency out of range");
+      srv->send(400, "text/plain", "Frequency out of range");
       return;
     }
     if (duty < 0 || duty > 100) {
-      server.send(400, "text/plain", "Duty out of range");
+      srv->send(400, "text/plain", "Duty out of range");
       return;
     }
 
     Laser::setFreq(freq);
     Laser::setDuty(duty);
     Laser::on();
-    server.send(200, "application/json", "{\"state\":\"on\",\"freq\":" + String(Laser::freq()) + ",\"duty\":" + String(Laser::duty()) + "}");
+    srv->send(200, "application/json", "{\"state\":\"on\",\"freq\":" + String(Laser::freq()) + ",\"duty\":" + String(Laser::duty()) + "}");
   });
 
-  server.on("/laser/status", HTTP_GET, [&]() {
-    if (!ensureLoggedIn(server, isLoggedIn)) {
+  srv->on("/laser/status", HTTP_GET, [srv, loginFlag]() {
+    if (!ensureLoggedIn(*srv, *loginFlag)) {
       return;
     }
     String payload = "{\"freq\":" + String(Laser::freq()) + ",\"duty\":" + String(Laser::duty()) + "}";
-    server.send(200, "application/json", payload);
+    srv->send(200, "application/json", payload);
   });
   
-  server.on("/update", HTTP_GET, [&]() {
-    if (!isLoggedIn) {
-      redirectToLogin(server);
+  srv->on("/update", HTTP_GET, [srv, loginFlag]() {
+    if (!*loginFlag) {
+      redirectToLogin(*srv);
       return;
     }
     File file = LittleFS.open("/update.html", "r");
-      if (!file) {
-        server.send(500, "text/plain", "Missing update page");
-        return;
-      }
-    server.streamFile(file, "text/html");
+    if (!file) {
+      srv->send(500, "text/plain", "Missing update page");
+      return;
+    }
+    srv->streamFile(file, "text/html");
     file.close();
   });
 
-  server.on("/update", HTTP_POST, [&]() {
-    server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
-  }, [&]() {
-    HTTPUpload& upload = server.upload();
+  srv->on("/update", HTTP_POST, [srv]() {
+    srv->send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+  }, [srv]() {
+    HTTPUpload& upload = srv->upload();
     if (upload.status == UPLOAD_FILE_START) {
       Update.begin();
     } else if (upload.status == UPLOAD_FILE_WRITE) {
       Update.write(upload.buf, upload.currentSize);
     } else if (upload.status == UPLOAD_FILE_END) {
       if (Update.end(true)) {
-        server.send(200, "text/plain", "Update Success! Rebooting...");
+        srv->send(200, "text/plain", "Update Success! Rebooting...");
         delay(1000);
         ESP.restart();
       } else {
-        server.send(500, "text/plain", "Update Failed!");
+        srv->send(500, "text/plain", "Update Failed!");
       }
     }
   });

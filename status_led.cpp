@@ -71,6 +71,26 @@ namespace StatusLED {
     bool g_stepApplied = false;
     Status g_currentStatus = Status::Unknown;
     uint32_t g_lastEval = 0;
+    bool g_initialized = false;
+
+    bool ensureOutputPin(uint8_t pin) {
+        if (!digitalPinIsValid(pin)) {
+            Serial.printf("[StatusLED] Invalid LED GPIO %u\n", pin);
+            return false;
+        }
+        pinMode(pin, OUTPUT);
+        digitalWrite(pin, LOW);
+        return true;
+    }
+
+    bool ensureInputPin(uint8_t pin, int mode, const char* name) {
+        if (!digitalPinIsValid(pin)) {
+            Serial.printf("[StatusLED] Invalid %s GPIO %u\n", name, pin);
+            return false;
+        }
+        pinMode(pin, mode);
+        return true;
+    }
 
     void applyMask(uint8_t mask) {
         digitalWrite(RED_PIN,    (mask & MASK_RED)    ? HIGH : LOW);
@@ -86,10 +106,10 @@ namespace StatusLED {
         g_stepStart = millis();
         g_stepApplied = false;
         if (g_pattern && g_patternLength) {
-        applyMask(g_pattern[0].mask);
-        g_stepApplied = true;
+            applyMask(g_pattern[0].mask);
+            g_stepApplied = true;
         } else {
-        applyMask(0);
+            applyMask(0);
         }
     }
 
@@ -180,21 +200,31 @@ namespace StatusLED {
     }
     }
 
-    void begin() {
-    pinMode(RED_PIN, OUTPUT);
-    pinMode(YELLOW_PIN, OUTPUT);
-    pinMode(GREEN_PIN, OUTPUT);
-    pinMode(BLUE_PIN, OUTPUT);
+    bool begin() {
+    g_initialized = ensureOutputPin(RED_PIN) &&
+                    ensureOutputPin(YELLOW_PIN) &&
+                    ensureOutputPin(GREEN_PIN) &&
+                    ensureOutputPin(BLUE_PIN) &&
+                    ensureInputPin(CHG_STATE_PIN, INPUT_PULLUP, "charger state") &&
+                    ensureInputPin(BAT_GOOD_PIN, INPUT_PULLUP, "battery good");
 
-    pinMode(CHG_STATE_PIN, INPUT_PULLUP);
-    pinMode(BAT_GOOD_PIN, INPUT_PULLUP);
+    if (!g_initialized) {
+        Serial.println("[StatusLED] Initialization skipped due to invalid GPIO configuration");
+        applyMask(0);
+        return false;
+    }
 
     applyMask(0);
     g_currentStatus = Status::Unknown;
     g_lastEval = millis();
+    Serial.println("[StatusLED] Initialized");
+    return true;
     }
 
     void update() {
+    if (!g_initialized) {
+        return;
+    }
     uint32_t now = millis();
     if (now - g_lastEval >= STATUS_EVAL_INTERVAL_MS) {
         Status status = determineStatus();
