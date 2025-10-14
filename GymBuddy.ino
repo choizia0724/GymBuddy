@@ -93,14 +93,25 @@ void setup() {
   Serial.println(WiFi.softAPIP());
 
   if (!LittleFS.begin()) {
-    Serial.println("LittleFS mount failed");
-    return;
+    Serial.println("LittleFS mount failed, attempting to format...");
+    LittleFS.end();
+    if (!LittleFS.format()) {
+      Serial.println("LittleFS format failed");
+      return;
+    }
+    if (!LittleFS.begin()) {
+      Serial.println("LittleFS mount failed after format");
+      return;
+    }
+    Serial.println("LittleFS formatted successfully");
   }
 
   setupRoutes(server, isLoggedIn);
   server.begin();
 
-  StatusLED::begin();
+  if (!StatusLED::begin()) {
+    Serial.println("Status LED initialization failed; continuing without status indicators");
+  }
 }
 
 void loop() {

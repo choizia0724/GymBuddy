@@ -2,6 +2,6 @@
 #include <Arduino.h>
 
 namespace StatusLED {
-  void begin();
+  bool begin();
   void update();
 }
