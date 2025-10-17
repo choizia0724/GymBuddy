@@ -4,6 +4,8 @@ DistanceSensor::DistanceSensor(const Pins& pins, const Config& cfg)
 : pins_(pins), cfg_(cfg) {}
 
 bool DistanceSensor::begin() {
+
+  
   // XSHUT으로 하드리셋(LOW→HIGH)
   if (pins_.xshut >= 0) {
     pinMode(pins_.xshut, OUTPUT);
@@ -13,9 +15,14 @@ bool DistanceSensor::begin() {
     delay(10);
   }
 
+  Serial.println("xshut = -1");
   // I2C 시작 (ESP32는 SDA/SCL 지정 가능)
   Wire.begin(pins_.sda, pins_.scl);
+  Serial.println("Wire Begin");
+
   Wire.setClock(cfg_.i2cHz);
+  Serial.println("Wire Set Clock");
+  delay(2);  // 버스 안정화
 
   // Adafruit VL53L0X 초기화
   if (!lox_.begin()) {

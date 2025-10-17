@@ -4,7 +4,7 @@
 #include <ArduinoJson.h>
 #include <Adafruit_VL53L0X.h>
 #include "routes.h"
-#include "nfc.h"
+#include "NfcReader.h"
 #include "laser.h"
 #include "power.h"
 #include "config.h"
@@ -17,13 +17,23 @@ bool isLoggedIn = false;
 
 // -------------------- Laser / Power Pins --------------------
 
-constexpr int LASER_EN_PIN = 20;   // 레이저 EN(PWM) — 10k/20k 분압 뒤 5V 모듈은 3.3V PWM만 인가됨
+constexpr int LASER_EN_PIN = 4;   // 레이저 EN(PWM) — 10k/20k 분압 뒤 5V 모듈은 3.3V PWM만 인가됨
 constexpr int VBAT_ADC_PIN = 8;    // 배터리 전압 ADC
 
 // -------------------- NFC (비 I2C 전제) --------------------
 
-constexpr int NFC_SDA_PIN = 11;
-constexpr int NFC_SCL_PIN = 10;
+#define NFC_SDA_PIN 11
+#define NFC_SCL_PIN 10
+
+#define NFC_IRQ_PIN -1
+#define NFC_RST_PIN -1
+
+
+NfcReader::Pins   nfcPins{NFC_SDA_PIN, NFC_SCL_PIN, NFC_IRQ_PIN, NFC_RST_PIN};
+NfcReader::Config nfcCfg{400000, 200, 200};
+NfcReader nfc(nfcPins, nfcCfg);
+
+constexpr uint16_t TOUCH_THRESHOLD_MM = 120;
 
 // -------------------- Distance Sensor (VL53L0X via I2C) --------------------
 
@@ -31,8 +41,10 @@ Adafruit_VL53L0X lox;
 
 constexpr int DIS_SDA_PIN   = 29;
 constexpr int DIS_SCL_PIN   = 28;
+constexpr int PIN_XSHUT = -1; // 미사용 
+constexpr int PIN_INT = -1; // 미사용
 
-DistanceSensor::Pins pins{DIS_SDA_PIN, DIS_SCL_PIN, -1, -1};
+DistanceSensor::Pins pins{DIS_SDA_PIN, DIS_SCL_PIN, PIN_XSHUT, PIN_INT};
 
 DistanceSensor::Config disCfg{
   .i2cHz = 400000,
@@ -41,8 +53,9 @@ DistanceSensor::Config disCfg{
   .medianN = 3
 };
 
-DistanceSensor sensor(pins, disCfg);
+DistanceSensor distanceSensor(pins, disCfg);
 bool touched = false;
+uint32_t PRINT_INTERVAL_MS = 50;
 uint32_t lastPrintMs = 0;
 
 // -------------------- Serial CLI: Laser --------------------
@@ -154,35 +167,27 @@ void setup() {
   Serial.println("server begin");
 
   // --- Distance Sensor (VL53L0X) ---
-  Serial.println("\n[VL53L0X] init...");
+  Serial.println("[VL53L0X] init...");
 
-  Wire.begin(DIS_SDA_PIN, DIS_SCL_PIN);    // ESP32는 핀 지정 가능
-  Wire.setClock(400000);           // 100k 또는 400k
-
-  // 기본 주소 0x29
-  if (!lox.begin()) {
-    Serial.println("VL53L0X init failed!");
-    while (1) delay(10);
-  }
-  lox.setTimeout(50); // 라이브러리 타임아웃(옵션)
-  Serial.println("VL53L0X ready");
-
-  if (!sensor.begin()) {
-    Serial.println("! Sensor init failed. Check wiring/power/XSHUT.");
-    for(;;) { delay(1000); }
-  }
-  Serial.println("OK");
-
-  // --- NFC ---
-  Serial.println("\n=== NFC bring-up ===");
-  Wire.begin(NFC_SDA_PIN, NFC_SCL_PIN);
-  if (!nfc.begin()) {
-    Serial.println("PN532 init failed (not I2C; check SPI/UART wiring & config).");
+  if (!distanceSensor.begin()) {
+    Serial.println("! DistanceSensor init failed. Check power/I2C wiring/XSHUT.");
     while (true) { delay(1000); }
   }
 
+  // Wire.begin(DIS_SDA_PIN, DIS_SCL_PIN);    // ESP32는 핀 지정 가능
+  // Wire.setClock(400000);           // 100k 또는 400k
+
+  Serial.println("VL53L0X ready");
+
+  // --- NFC ---
+  Serial.println("\n=== NFC bring-up ===");
+
+  if (!nfc.begin()) {
+    Serial.println("[NFC] init failed");
+    for(;;) delay(1000);
+  }
   nfc.printFirmware();
-  nfc.configureSAM();  // 카드 감지 모드 진입
+  nfc.configureSAM();
   Serial.println("Ready. Tap a card/tag...");
 
 }
@@ -193,38 +198,35 @@ void loop() {
 
   // --- Serial CLI (Laser) ---
   handleSerialLaserCommand();
-
-  // 작은 양념
   delay(1);
 
   // --- Distance read & touch event (every ~50ms) ---
-  if (millis() - lastPrintMs >= 50) {
-    lastPrintMs = millis();
+  const uint32_t now = millis();
+  if (now - lastPrintMs >= PRINT_INTERVAL_MS) {
+    lastPrintMs = now;
 
-    uint16_t mm;
-    if (sensor.read(mm)) {
-      Serial.print("DIST(mm): ");
-      Serial.println(mm);
+    uint16_t distance_mm;
+    if (distanceSensor.read(distance_mm)) {
+      // 거리값 성공
+      Serial.print("DIST(distance_mm): ");
+      Serial.println(distance_mm);
 
-      bool nowTouched = (mm <= disCfg.touchThresholdMm); // ← cfg → disCfg로 수정
-      if (nowTouched && !touched) Serial.println("[EVENT] TOUCH ✔");
-      if (!nowTouched && touched) Serial.println("[EVENT] RELEASE ✖");
-      touched = nowTouched;
     } else {
-      Serial.println("DIST: -- (out of range or read fail)");
+      // 읽기 실패(범위 밖/타임아웃 등)
+      Serial.println("DIST: -- (read fail or out of range)");
     }
   }
 
   // --- NFC poll (single try with 200ms timeout) ---
   NfcTag tag;
-  if (nfc.pollTag(tag, 200)) {
-    Serial.print("Tag detected: ");
-    Serial.print(tag.tech);
-    Serial.print("  UID: ");
-    for (uint8_t i = 0; i < tag.uidLen; i++) {
+ if (nfc.pollOnce(tag)) {
+    Serial.print("[NFC] UID: ");
+    for (uint8_t i = 0; i < tag.uidLen; ++i) {
       if (i) Serial.print(':');
       Serial.printf("%02X", tag.uid[i]);
     }
-    Serial.println();
+    Serial.print("  tech=");
+    Serial.println(tag.tech);
+    // TODO: 태그 처리 로직
   }
 }

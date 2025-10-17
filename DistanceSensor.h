@@ -19,7 +19,6 @@ public:
     uint8_t  medianN = 3;            // 1/3/5 권장
   };
 
-  // ⛔️ 기본 인자 (= Config())를 제거해서 컴파일 에러 해결
   DistanceSensor(const Pins& pins, const Config& cfg);
 
   bool begin();
