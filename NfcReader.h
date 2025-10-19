@@ -23,7 +23,7 @@ public:
     uint16_t cmdTimeoutMs   = 200;
   };
 
-  NfcReader(const Pins& pins, const Config& cfg);
+  NfcReader(const Pins& pins, const Config& cfg, TwoWire& bus = Wire);
 
   bool begin();
   void update();                   
@@ -33,6 +33,7 @@ public:
 
 private:
   Pins pins_;
+  TwoWire* bus_;
   Config cfg_;
   bool initialized_ = false;
   uint32_t lastPollMs_ = 0;

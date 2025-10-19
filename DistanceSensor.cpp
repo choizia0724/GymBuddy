@@ -1,12 +1,10 @@
 #include "DistanceSensor.h"
 
-DistanceSensor::DistanceSensor(const Pins& pins, const Config& cfg)
-: pins_(pins), cfg_(cfg) {}
+DistanceSensor::DistanceSensor(const Pins& pins, const Config& cfg, TwoWire& bus)
+: pins_(pins), cfg_(cfg), bus_(&bus) {}
 
 bool DistanceSensor::begin() {
-
-  
-  // XSHUT으로 하드리셋(LOW→HIGH)
+  // 0) XSHUT 하드리셋
   if (pins_.xshut >= 0) {
     pinMode(pins_.xshut, OUTPUT);
     digitalWrite(pins_.xshut, LOW);
@@ -15,27 +13,50 @@ bool DistanceSensor::begin() {
     delay(10);
   }
 
-  Serial.println("xshut = -1");
-  // I2C 시작 (ESP32는 SDA/SCL 지정 가능)
-  Wire.begin(pins_.sda, pins_.scl);
-  Serial.println("Wire Begin");
+  Serial.printf("[DIST] SDA=%d SCL=%d\n", pins_.sda, pins_.scl);
 
-  Wire.setClock(cfg_.i2cHz);
-  Serial.println("Wire Set Clock");
-  delay(2);  // 버스 안정화
+  // 1) I2C 시작 — 먼저 100kHz로
+  const uint32_t startHz = 100000;
+  if (!bus_->begin(pins_.sda, pins_.scl, startHz)) {
+    Serial.println("[DIST] I2C begin failed");
+    return false;
+  }
+  delay(2);
 
-  // Adafruit VL53L0X 초기화
-  if (!lox_.begin()) {
+  // 2) 센서 핑(선택, 디버그용)
+  bus_->beginTransmission(0x29);
+  uint8_t rc = bus_->endTransmission();
+  if (rc != 0) {
+    Serial.printf("[DIST] Ping 0x29 failed rc=%u (0=OK,2=addrNACK,3=dataNACK)\n", rc);
+    return false;
+  }
+
+  // 3) VL53L0X 초기화(가능하면 같은 버스 포인터 전달)
+  bool ok = false;
+  // 최신 Adafruit_VL53L0X는 아래 시그니처 지원: begin(addr=0x29, debug=false, TwoWire* theWire=&Wire)
+  ok = lox_.begin(VL53L0X_I2C_ADDR, false, bus_);
+  // 만약 위 줄이 컴파일 에러라면 (구버전):
+  //   - 라이브러리 업데이트 권장
+  //   - 임시 우회: 전역 Wire를 같은 핀으로 시작시킨 뒤 lox_.begin() 호출
+  //     Wire.begin(pins_.sda, pins_.scl, startHz);
+  //     ok = lox_.begin();
+
+  if (!ok) {
+    Serial.println("[DIST] VL53L0X begin() failed");
     initialized_ = false;
     return false;
   }
 
-  // ⚠️ Adafruit_VL53L0X에는 setTimeout 없음 → 호출 제거
-  // lox_.setTimeout(cfg_.measureTimeoutMs); // (삭제)
+  if (cfg_.i2cHz > startHz) {
+    bus_->setClock(cfg_.i2cHz);
+    delay(1);
+  }
 
   initialized_ = true;
+  Serial.println("[DIST] init OK");
   return true;
 }
+
 
 bool DistanceSensor::singleRead_(uint16_t& mm) {
   if (!initialized_) return false;

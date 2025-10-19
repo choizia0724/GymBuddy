@@ -18,14 +18,15 @@ public:
     uint16_t touchThresholdMm = 40;  // “터치” 판단 임계값
     uint8_t  medianN = 3;            // 1/3/5 권장
   };
-
-  DistanceSensor(const Pins& pins, const Config& cfg);
+  
+  DistanceSensor(const Pins& pins, const Config& cfg, TwoWire& bus = Wire);
 
   bool begin();
   bool read(uint16_t& mm);
 
 private:
   Pins   pins_;
+  TwoWire* bus_;
   Config cfg_;
   Adafruit_VL53L0X lox_;
   bool initialized_ = false;

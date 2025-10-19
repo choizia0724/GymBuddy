@@ -2,31 +2,56 @@
 
 static uint8_t castPin(int v) { return (v < 0) ? 0xFF : (uint8_t)v; }
 
-NfcReader::NfcReader(const Pins& pins, const Config& cfg)
-: pins_(pins), cfg_(cfg),
-  // I2C 생성자: (irq, reset, &Wire)
-  pn532_(castPin(pins.irq), castPin(pins.rst), &Wire)
+NfcReader::NfcReader(const Pins& pins, const Config& cfg, TwoWire& bus)
+: pins_(pins),
+  cfg_(cfg),
+  bus_(&bus),
+  // Adafruit_PN532 I2C 생성자 시그니처: (irq, reset, TwoWire*)
+  pn532_(castPin(pins.irq), castPin(pins.rst), bus_)
 {}
+
+
+
 
 bool NfcReader::begin() {
   // I2C 라인 열기
-  Wire.begin(pins_.sda, pins_.scl);
-  Wire.setClock(cfg_.i2cHz);
 
+  const uint32_t startHz = 100000;
+  if (!bus_->begin(pins_.sda, pins_.scl, startHz)) {
+    Serial.println("[NFC] I2C begin failed");
+    return false;
+  }
+  // 필요하면 승격 (cfg_.i2cHz가 100kHz 초과일 때만)
+  if (cfg_.i2cHz > startHz) {
+    bus_->setClock(cfg_.i2cHz);
+  }
+
+  // 2) IRQ/RST 핀 설정
+  if (pins_.irq >= 0) {
+    pinMode(pins_.irq, INPUT_PULLUP); // PN532 IRQ는 대기 HIGH, 준비되면 LOW
+  }
+  if (pins_.rst >= 0) {
+    pinMode(pins_.rst, OUTPUT);
+    digitalWrite(pins_.rst, HIGH);
+  }
+
+  // 3) PN532 초기화
   pn532_.begin();
 
-  // 펌웨어 버전 확인 (0이면 실패)
+  // 4) 펌웨어 버전 확인 (0이면 실패)
   uint32_t ver = pn532_.getFirmwareVersion();
   if (!ver) {
+    Serial.println("[NFC] getFirmwareVersion failed (0x48 NACK?)");
     initialized_ = false;
     return false;
   }
 
-  // SAM 설정 (카드 감지 가능 상태)
+  // 5) SAM 설정 (카드 감지 모드)
   pn532_.SAMConfig();
 
   initialized_ = true;
   lastPollMs_  = millis();
+  Serial.println("[NFC] init OK");
   return true;
 }
 

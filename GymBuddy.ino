@@ -20,17 +20,20 @@ bool isLoggedIn = false;
 constexpr int LASER_EN_PIN = 4;   // 레이저 EN(PWM) — 10k/20k 분압 뒤 5V 모듈은 3.3V PWM만 인가됨
 constexpr int VBAT_ADC_PIN = 8;    // 배터리 전압 ADC
 
-// -------------------- NFC (비 I2C 전제) --------------------
+// -------------------- NFC --------------------
 
-#define NFC_SDA_PIN 11
-#define NFC_SCL_PIN 10
-
-#define NFC_IRQ_PIN -1
-#define NFC_RST_PIN -1
+constexpr int NFC_SDA_PIN = 11
+constexpr int NFC_SCL_PIN = 10
+constexpr int NFC_IRQ_PIN = -1
+constexpr int NFC_RST_PIN = -1
 
 
 NfcReader::Pins   nfcPins{NFC_SDA_PIN, NFC_SCL_PIN, NFC_IRQ_PIN, NFC_RST_PIN};
-NfcReader::Config nfcCfg{400000, 200, 200};
+NfcReader::Config nfcCfg{
+  400000,
+  200,
+  200};
+
 NfcReader nfc(nfcPins, nfcCfg);
 
 constexpr uint16_t TOUCH_THRESHOLD_MM = 120;
@@ -39,8 +42,8 @@ constexpr uint16_t TOUCH_THRESHOLD_MM = 120;
 
 Adafruit_VL53L0X lox;
 
-constexpr int DIS_SDA_PIN   = 29;
-constexpr int DIS_SCL_PIN   = 28;
+constexpr int DIS_SDA_PIN   = 36;
+constexpr int DIS_SCL_PIN   = 35;
 constexpr int PIN_XSHUT = -1; // 미사용 
 constexpr int PIN_INT = -1; // 미사용
 
@@ -57,6 +60,11 @@ DistanceSensor distanceSensor(pins, disCfg);
 bool touched = false;
 uint32_t PRINT_INTERVAL_MS = 50;
 uint32_t lastPrintMs = 0;
+
+// -------------------- Bus Instance -------------------------
+
+
+TwoWire I2C_NFC = TwoWire(1);  
 
 // -------------------- Serial CLI: Laser --------------------
 namespace {
@@ -174,12 +182,9 @@ void setup() {
     while (true) { delay(1000); }
   }
 
-  // Wire.begin(DIS_SDA_PIN, DIS_SCL_PIN);    // ESP32는 핀 지정 가능
-  // Wire.setClock(400000);           // 100k 또는 400k
-
   Serial.println("VL53L0X ready");
 
-  // --- NFC ---
+  --- NFC ---
   Serial.println("\n=== NFC bring-up ===");
 
   if (!nfc.begin()) {
@@ -219,7 +224,7 @@ void loop() {
 
   // --- NFC poll (single try with 200ms timeout) ---
   NfcTag tag;
- if (nfc.pollOnce(tag)) {
+  if (nfc.pollOnce(tag)) {
     Serial.print("[NFC] UID: ");
     for (uint8_t i = 0; i < tag.uidLen; ++i) {
       if (i) Serial.print(':');
