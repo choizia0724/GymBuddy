@@ -1,7 +1,6 @@
 #pragma once
 #include <Arduino.h>
-#ifndef RT9532_BAT_EN_PIN
-#define RT9532_BAT_EN_PIN 15
+#define RT9532_BAT_EN_PIN 19
 #endif
 
 namespace Power {

@@ -37,7 +37,7 @@ bool NfcReader::begin() {
   }
 
   // 3) PN532 초기화
-  pn532_.begin();
+  pn532_.begin(pins_.sda, pins_.scl, startHz);
 
   // 4) 펌웨어 버전 확인 (0이면 실패)
   uint32_t ver = pn532_.getFirmwareVersion();
