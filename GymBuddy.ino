@@ -18,10 +18,13 @@ bool isLoggedIn = false;
 
 // -------------------- NFC --------------------
 
+
+TwoWire WireNFC = TwoWire(1);
+
 constexpr int NFC_SDA_PIN = 11;
 constexpr int NFC_SCL_PIN = 10;
-constexpr int NFC_IRQ_PIN = -1;
-constexpr int NFC_RST_PIN = -1;
+constexpr int NFC_IRQ_PIN = 14;
+constexpr int NFC_RST_PIN = 9;
 
 
 NfcReader::Pins   nfcPins{NFC_SDA_PIN, NFC_SCL_PIN, NFC_IRQ_PIN, NFC_RST_PIN};
@@ -30,12 +33,13 @@ NfcReader::Config nfcCfg{
   200,
   200};
 
-NfcReader nfc(nfcPins, nfcCfg);
+NfcReader nfc(nfcPins, nfcCfg, WireNFC);
 
 constexpr uint16_t TOUCH_THRESHOLD_MM = 120;
 
 // -------------------- Distance Sensor (VL53L0X via I2C) --------------------
 
+TwoWire WireDist = Wire; 
 Adafruit_VL53L0X lox;
 
 constexpr int DIS_SDA_PIN   = 36;
@@ -46,13 +50,13 @@ constexpr int PIN_INT = -1; // 미사용
 DistanceSensor::Pins pins{DIS_SDA_PIN, DIS_SCL_PIN, PIN_XSHUT, PIN_INT};
 
 DistanceSensor::Config disCfg{
-  .i2cHz = 400000,
+  .i2cHz = 100000,
   .measureTimeoutMs = 200,
   .touchThresholdMm = 40,
   .medianN = 3
 };
 
-DistanceSensor distanceSensor(pins, disCfg);
+DistanceSensor distanceSensor(pins, disCfg, WireDist);
 uint32_t PRINT_INTERVAL_MS = 50;
 uint32_t lastPrintMs = 0;
 uint32_t minDistanceMm = 1000;
@@ -197,6 +201,7 @@ void setup() {
   Serial.println("VL53L0X ready");
 
  // --- NFC ---
+
   Serial.println("\n=== NFC bring-up ===");
 
   if (!nfc.begin()) {

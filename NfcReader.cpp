@@ -1,5 +1,6 @@
 #include "NfcReader.h"
 
+
 static uint8_t castPin(int v) { return (v < 0) ? 0xFF : (uint8_t)v; }
 
 NfcReader::NfcReader(const Pins& pins, const Config& cfg, TwoWire& bus)
