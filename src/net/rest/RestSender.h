@@ -6,9 +6,9 @@ class RestSender {
 public:
   struct Config {
     const char* host        = "";     // 예: "api.example.com"
-    uint16_t    port        = 80;    // 443=HTTPS, 80=HTTP
+    uint16_t    port        = 80;     // 443=HTTPS, 80=HTTP
     const char* basePath    = "/";    // 예: "/prod"
-    bool        useHttps    = false;   // true=HTTPS, false=HTTP
+    bool        useHttps    = false;  // true=HTTPS, false=HTTP
     uint16_t    timeoutMs   = 4000;   // 요청 타임아웃
     uint8_t     maxRetries  = 2;      // 재시도 횟수
   };

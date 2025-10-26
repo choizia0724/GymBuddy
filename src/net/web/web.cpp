@@ -1,6 +1,6 @@
 #include "web.h"
-#include "config.h"
-#include "wifi_ap.h"
+#include "src/config/config.h"
+#include "src/net/wifi/wifi_ap.h"
 
 #include <Arduino.h>
 #include <LittleFS.h>

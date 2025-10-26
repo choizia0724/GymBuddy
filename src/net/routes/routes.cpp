@@ -1,10 +1,11 @@
+#include <ArduinoJson.h>
 #include "routes.h"
 #include <LittleFS.h>
 #include <Update.h>
 #include <WiFi.h>
-#include "config.h"
-#include "power.h"
-#include "laser.h"
+#include "src/config/config.h"
+#include "src/devices/power/power.h"
+#include "src/devices/laser/laser.h"
 
 static bool ensureLoggedIn(WebServer& server, bool& isLoggedIn) {
   if (isLoggedIn) {
@@ -13,6 +14,30 @@ static bool ensureLoggedIn(WebServer& server, bool& isLoggedIn) {
 
   server.send(401, "text/plain", "Unauthorized");
   return false;
+}
+
+static void applyAndSaveConfig_(const AppConfig& in) {
+  AppConfig cur = Config::get();
+
+  bool apChanged  = (in.apSsid != cur.apSsid) || (in.apPass != cur.apPass);
+  bool staChanged = (in.staSsid!= cur.staSsid)|| (in.staPass!= cur.staPass);
+  bool wantSTA    = in.staSsid.length() > 0;
+
+  Config::save(in);
+
+  if (apChanged || staChanged) {
+    WiFi.mode(wantSTA ? WIFI_AP_STA : WIFI_AP);
+  }
+  if (apChanged) {
+    WiFi.softAPdisconnect(true);
+    WiFi.softAP(in.apSsid.c_str(), in.apPass.c_str());
+  }
+  if (staChanged) {
+    WiFi.disconnect(true);
+    if (wantSTA) {
+      WiFi.begin(in.staSsid.c_str(), in.staPass.c_str());
+    }
+  }
 }
 
 static void redirectTo(WebServer& server, const String& path) {
@@ -53,45 +78,41 @@ void setupRoutes(WebServer& server, bool& isLoggedIn) {
     }
   });
 
-  srv->on("/save", HTTP_POST, [srv, loginFlag]() {
-    if (!*loginFlag) {
-      srv->send(401, "text/plain", "Unauthorized");
-      return;
-    }
+  // GET: 현재 설정 조회
+  srv->on("/api/config", HTTP_GET, [srv, loginFlag]() {
+    if (!ensureLoggedIn(*srv, *loginFlag)) return;
+    AppConfig cfg = Config::get();
+    StaticJsonDocument<512> doc;
+    doc["apSsid"]    = cfg.apSsid;
+    doc["apPass"]    = cfg.apPass;
+    doc["staSsid"]   = cfg.staSsid;
+    doc["staPass"]   = cfg.staPass;
+    doc["adminUser"] = cfg.adminUser;
+    doc["adminPass"] = cfg.adminPass;
+    doc["version"]   = cfg.version;
+    String out; serializeJson(doc, out);
+    srv->send(200, "application/json", out);
+  });
 
-    auto current = Config::get();
-    AppConfig updated = current;
+  // POST: 설정 저장(= 기존 /save 대체)
+  srv->on("/api/config", HTTP_POST, [srv, loginFlag]() {
+    if (!ensureLoggedIn(*srv, *loginFlag)) return;
+    if (!srv->hasArg("plain")) { srv->send(400, "text/plain", "no body"); return; }
 
-    if (srv->hasArg("apSsid")) updated.apSsid = srv->arg("apSsid");
-    if (srv->hasArg("apPass")) updated.apPass = srv->arg("apPass");
-    if (srv->hasArg("staSsid")) updated.staSsid = srv->arg("staSsid");
-    if (srv->hasArg("staPass")) updated.staPass = srv->arg("staPass");
-    if (srv->hasArg("adminUser")) updated.adminUser = srv->arg("adminUser");
-    if (srv->hasArg("adminPass")) updated.adminPass = srv->arg("adminPass");
+    StaticJsonDocument<512> doc;
+    if (deserializeJson(doc, srv->arg("plain"))) { srv->send(400, "text/plain", "bad json"); return; }
 
-    bool apChanged = (updated.apSsid != current.apSsid) || (updated.apPass != current.apPass);
-    bool staChanged = (updated.staSsid != current.staSsid) || (updated.staPass != current.staPass);
-    bool wantSTA = updated.staSsid.length() > 0;
+    AppConfig in = Config::get();
+    if (doc.containsKey("apSsid"))    in.apSsid    = (const char*)doc["apSsid"];
+    if (doc.containsKey("apPass"))    in.apPass    = (const char*)doc["apPass"];
+    if (doc.containsKey("staSsid"))   in.staSsid   = (const char*)doc["staSsid"];
+    if (doc.containsKey("staPass"))   in.staPass   = (const char*)doc["staPass"];
+    if (doc.containsKey("adminUser")) in.adminUser = (const char*)doc["adminUser"];
+    if (doc.containsKey("adminPass")) in.adminPass = (const char*)doc["adminPass"];
+    if (doc.containsKey("version"))   in.version   = (uint32_t)doc["version"].as<uint32_t>();
 
-    Config::save(updated);
-
-    if (apChanged || staChanged) {
-      WiFi.mode(wantSTA ? WIFI_AP_STA : WIFI_AP);
-    }
-
-    if (apChanged) {
-      WiFi.softAPdisconnect(true);
-      WiFi.softAP(updated.apSsid.c_str(), updated.apPass.c_str());
-    }
-
-    if (staChanged) {
-      WiFi.disconnect(true);
-      if (wantSTA) {
-        WiFi.begin(updated.staSsid.c_str(), updated.staPass.c_str());
-      }
-    }
-
-    redirectTo(*srv, "/config");
+    applyAndSaveConfig_(in);
+    srv->send(204); // No Content
   });
 
   srv->on("/config", HTTP_GET, [srv, loginFlag]() {
@@ -106,6 +127,10 @@ void setupRoutes(WebServer& server, bool& isLoggedIn) {
     }
     srv->streamFile(file, "text/html");
     file.close();
+  });
+
+  srv->on("/save", HTTP_ANY, [srv]() {
+    srv->send(410, "text/plain", "Deprecated. Use POST /api/config (JSON).");
   });
 
   srv->on("/charger", HTTP_POST, [srv, loginFlag]() {

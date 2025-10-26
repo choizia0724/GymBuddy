@@ -1,5 +1,5 @@
 #include "status_led.h"
-#include "power.h"
+#include "src/devices/power/power.h"
 
 namespace StatusLED {
     namespace {

@@ -2,24 +2,31 @@
 <html>
   <head>
     <title>Config</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   </head>
   <body>
     <h2>Configuration</h2>
-    <form action="/save" method="POST">
+    <form id="cfgForm">
       <fieldset>
         <legend>Access Point</legend>
-        SSID: <input name="apSsid" /><br />
-        Password: <input name="apPass" /><br />
+        <label>AP SSID <input id="apSsid" name="apSsid" /></label><br />
+        <label
+          >AP Pass <input id="apPass" name="apPass" type="password" /></label
+        ><br />
       </fieldset>
       <fieldset>
-        <legend>Station</legend>
-        SSID: <input name="staSsid" /><br />
-        Password: <input name="staPass" /><br />
+        <label>STA SSID <input id="staSsid" name="staSsid" /></label><br />
+        <label
+          >STA Pass <input id="staPass" name="staPass" type="password" /></label
+        ><br />
       </fieldset>
       <fieldset>
         <legend>Admin</legend>
-        Username: <input name="adminUser" /><br />
-        Password: <input name="adminPass" /><br />
+        <label>Admin ID <input id="adminUser" name="adminUser" /></label><br />
+        <label
+          >Admin PW
+          <input id="adminPass" name="adminPass" type="password" /></label
+        ><br />
       </fieldset>
       <input type="submit" value="Save" />
     </form>
@@ -105,6 +112,42 @@
         });
 
       refreshLaserStatus();
+
+      (async () => {
+        const r = await fetch("/api/config");
+        if (!r.ok) return;
+        const cfg = await r.json();
+        for (const k in cfg) {
+          const el = document.getElementById(k);
+          if (el) el.value = cfg[k];
+        }
+      })();
+
+      document
+        .getElementById("cfgForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const body = {
+            apSsid: document.getElementById("apSsid").value,
+            apPass: document.getElementById("apPass").value,
+            staSsid: document.getElementById("staSsid").value,
+            staPass: document.getElementById("staPass").value,
+            adminUser: document.getElementById("adminUser").value,
+            adminPass: document.getElementById("adminPass").value,
+            version: Number(document.getElementById("version").value || 0),
+          };
+          const r = await fetch("/api/config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (r.status === 204) {
+            alert("Saved!");
+            // 네트워크가 바뀌면 연결이 잠깐 끊길 수 있어요.
+          } else {
+            alert("Save failed: " + (await r.text()));
+          }
+        });
     </script>
   </body>
 </html>

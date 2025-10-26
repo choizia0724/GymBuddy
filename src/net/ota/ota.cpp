@@ -1,5 +1,5 @@
 #include "ota.h"
-#include "config.h"
+#include "src/config/config.h"
 #include <ArduinoOTA.h>
 #include <WiFi.h>
 

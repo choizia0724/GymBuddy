@@ -2,15 +2,22 @@
 #include <WebServer.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
-#include <Adafruit_VL53L0X.h>
-#include "routes.h"
-#include "NfcReader.h"
-#include "laser.h"
-#include "power.h"
-#include "config.h"
-#include "status_led.h"
-#include "DistanceSensor.h"
-#include "RestSender.h"
+// 통신
+#include "src/net/routes/routes.h"
+#include "src/net/rest/RestSender.h"
+// 설정
+#include "src/config/config.h"
+#include "src/devices/nfc/NfcReaderSPI.h"
+// Up Down 트렌드 감지
+#include "src/app/trend/TrendDetector.h"
+// laser Cli
+#include "src/app/cli/cli_laser.h"
+// 물리 기기들
+#include "src/devices/laser/laser.h"
+#include "src/devices/power/power.h"
+#include "src/devices/status_led/status_led.h"
+#include "src/devices/distance/DistanceSensor.h"
+
 
 // -------------------- Web / Auth --------------------
 WebServer server(8080);
@@ -18,34 +25,33 @@ bool isLoggedIn = false;
 
 // -------------------- NFC --------------------
 
+constexpr int NFC_SCK  = 12;
+constexpr int NFC_MISO = 13;
+constexpr int NFC_MOSI = 11;
+constexpr int NFC_SS   = 10;
+constexpr int NFC_RST  = 9;   // optional, 없으면 -1
+constexpr int NFC_IRQ  = 14;  // optional, 없으면 -1
 
-TwoWire WireNFC = TwoWire(1);
+NfcReaderSPI2::Pins NFC_PINS{
+  NFC_SCK, NFC_MISO, NFC_MOSI, NFC_SS, NFC_RST, NFC_IRQ
+};
 
-constexpr int NFC_SDA_PIN = 11;
-constexpr int NFC_SCL_PIN = 10;
-constexpr int NFC_IRQ_PIN = 14;
-constexpr int NFC_RST_PIN = 9;
+NfcReaderSPI2::Config NFC_CFG{
+  1000000 // 1MHz
+};
 
-
-NfcReader::Pins   nfcPins{NFC_SDA_PIN, NFC_SCL_PIN, NFC_IRQ_PIN, NFC_RST_PIN};
-NfcReader::Config nfcCfg{
-  400000,
-  200,
-  200};
-
-NfcReader nfc(nfcPins, nfcCfg, WireNFC);
-
-constexpr uint16_t TOUCH_THRESHOLD_MM = 120;
+// 전역 리더 인스턴스
+NfcReaderSPI2 nfc(NFC_PINS, NFC_CFG);
 
 // -------------------- Distance Sensor (VL53L0X via I2C) --------------------
 
-TwoWire WireDist = Wire; 
+TwoWire disWire = TwoWire(0);
 Adafruit_VL53L0X lox;
 
 constexpr int DIS_SDA_PIN   = 36;
 constexpr int DIS_SCL_PIN   = 35;
-constexpr int PIN_XSHUT = -1; // 미사용 
-constexpr int PIN_INT = -1; // 미사용
+constexpr int PIN_XSHUT     = -1; // 미사용 
+constexpr int PIN_INT       = -1; // 미사용
 
 DistanceSensor::Pins pins{DIS_SDA_PIN, DIS_SCL_PIN, PIN_XSHUT, PIN_INT};
 
@@ -56,13 +62,12 @@ DistanceSensor::Config disCfg{
   .medianN = 3
 };
 
-DistanceSensor distanceSensor(pins, disCfg, WireDist);
-uint32_t PRINT_INTERVAL_MS = 50;
+DistanceSensor distanceSensor(pins, disCfg, disWire);
+// -------------------- Trend Detector --------------------
+TrendDetector detector; 
+
 uint32_t lastPrintMs = 0;
-uint32_t minDistanceMm = 1000;
-uint32_t maxDistanceMm = 0;
-uint32_t lastDistanceMm = 0;
-bool startFlag = false;
+const uint32_t PRINT_INTERVAL_MS = 50;
 
 // -------------------- RestSender --------------------
 
@@ -81,60 +86,6 @@ RestSender sender(rsCfg);
 
 constexpr int LASER_EN_PIN = 4;   // 레이저 EN(PWM) — 10k/20k 분압 뒤 5V 모듈은 3.3V PWM만 인가됨
 constexpr int VBAT_ADC_PIN = 8;    // 배터리 전압 ADC
-
-// -------------------- Serial CLI: Laser --------------------
-namespace {
-  void handleSerialLaserCommand() {
-    if (!Serial.available()) {
-      return;
-    }
-
-    String line = Serial.readStringUntil('\n');
-    line.trim();
-    if (line.length() == 0) {
-      return;
-    }
-
-    String upper = line;
-    upper.toUpperCase();
-
-    if (upper == "LASER ON") {
-      Laser::on();
-      Serial.println("Laser enabled (duty=" + String(Laser::duty()) + "%, freq=" + String(Laser::freq()) + "Hz)");
-      return;
-    }
-
-    if (upper == "LASER OFF") {
-      Laser::off();
-      Serial.println("Laser disabled");
-      return;
-    }
-
-    if (upper.startsWith("LASER F=")) {
-      long freq = upper.substring(8).toInt();
-      if (freq >= Laser::MIN_FREQ_HZ && freq <= Laser::MAX_FREQ_HZ) {
-        Laser::setFreq(freq);
-        Serial.println("Laser frequency set to " + String(freq) + "Hz");
-      } else {
-        Serial.println("Frequency out of range (" + String(Laser::MIN_FREQ_HZ) + "-" + String(Laser::MAX_FREQ_HZ) + "Hz)");
-      }
-      return;
-    }
-
-    if (upper.startsWith("LASER D=")) {
-      long duty = upper.substring(8).toInt();
-      if (duty >= 0 && duty <= 100) {
-        Laser::setDuty(duty);
-        Serial.println("Laser duty set to " + String(duty) + "%");
-      } else {
-        Serial.println("Duty out of range (0-100%)");
-      }
-      return;
-    }
-
-    Serial.println("Unknown laser command. Use 'LASER ON', 'LASER OFF', 'LASER F=<2000-5000>', 'LASER D=<0-100>'");
-  }
-} // namespace
 
 // ======================================================
 
@@ -202,15 +153,25 @@ void setup() {
 
  // --- NFC ---
 
-  Serial.println("\n=== NFC bring-up ===");
+  Serial.print("MOSI Pin: ");
+  Serial.println(MOSI);
+  Serial.print("MISO Pin: ");
+  Serial.println(MISO);
+  Serial.print("SCK Pin: ");
+  Serial.println(SCK);
+  Serial.print("SS Pin: ");
+  Serial.println(SS);  
 
+  Serial.println(F("[PN532] init... (SPI2)"));
   if (!nfc.begin()) {
-    Serial.println("[NFC] init failed");
-    for(;;) delay(1000);
+    Serial.println(F("! PN532 init failed. Check SPI2 wiring/mode/CS."));
+    while (true) { delay(1000); }
   }
-  nfc.printFirmware();
-  nfc.configureSAM();
-  Serial.println("Ready. Tap a card/tag...");
+
+  uint32_t ver = nfc.firmwareVersion();
+  Serial.print(F("PN532 firmware: 0x"));
+  Serial.println(ver, HEX);
+  Serial.println(F("Waiting for ISO14443A card..."));
 
 }
 
@@ -223,84 +184,42 @@ void loop() {
   delay(1);
 
   // --- Distance read & touch event (every ~50ms) ---
-  const uint32_t now = millis();
-  // if (now - lastPrintMs >= PRINT_INTERVAL_MS) {
-  //   // 기지정된 인터벌만큼
-  //   lastPrintMs = now;
+   const uint32_t now = millis();
+  if (now - lastPrintMs < PRINT_INTERVAL_MS) return;
+  lastPrintMs = now;
 
-  //   uint16_t distance_mm;
-  //   if (distanceSensor.read(distance_mm)) {
-  //     // 거리값 성공
-  //     Serial.print("DIST(distance_mm): ");
-  //     Serial.println(distance_mm);
-  //     Serial.print("DIST(lastDistanceMm): ");
-  //     Serial.println(lastDistanceMm);
-  //     Serial.print("DIST(minDistanceMm): ");
-  //     Serial.println(minDistanceMm);
-  //     Serial.print("DIST(maxDistanceMm): ");
-  //     Serial.println(maxDistanceMm);
+  uint16_t d;
+  if (distanceSensor.read(d)) {
+    if (detector.step(d)) {
+      const auto& s = detector.state();
+      Serial.printf("Send! stata: %s");
+      Serial.print("\n");
+      // String json = String("{\"event\":\"pull_release\",\"min\":") + s.minv +
+      //               ",\"max\":" + s.maxv + ",\"last\":" + s.last + "}";
 
-  //     if(lastDistanceMm == 0){
-  //       // 초기값 할당
-  //       lastDistanceMm = distance_mm;
-  //       return;
-  //     }
+      // bool ok = sender.post_plain_http(nullptr, 0, "/events", json);
+      // Serial.println(ok ? "POST OK" : "POST FAIL");
+    }
 
-  //     if(lastDistanceMm >= distance_mm &&
-  //         startFlag ==false){
-  //       startFlag = true;
-  //       minDistanceMm = distance_mm;
-  //       maxDistanceMm = distance_mm;
-  //       lastDistanceMm = distance_mm;
-  //       return;
-  //     }
-
-  //     if (lastDistanceMm >= distance_mm && 
-  //           startFlag == true) {
-  //         // 이전 데이터 보다 1cm 이하로 움직이는 것은 무시함
-  //         if (distance_mm + 10 < lastDistanceMm) {
-  //             return;
-  //         }
-  //         maxDistanceMm = distance_mm;
-  //         lastDistanceMm = distance_mm;
-  //     }
-
-  //       // 시작 이지만 계속 내려가면 노이즈 데이터임 시작한거 아님.
-  //     if (lastDistanceMm + 10 <= distance_mm && startFlag == true) {
-  //         startFlag = false;
-  //         //lastDistanceMm = distance_mm;
-  //         return;
-  //     }
-
-  //     // 종료 check
-  //     // 꺾이기 시작하면 꺾이기 시작 바로 전값이 최고 값임.
-  //     if (maxDistanceMm + 10 <= distance_mm  && startFlag == true) {
-  //       // 현재 데이터가 maxData보다 1cm 보다 더 클 경우만 날때 데이터 전송.
-  //       if (distance_mm >= maxDistanceMm + 10) {
-  //           // 데이터 전송
-           
-  //           Serial.println("Send!");
-  //           startFlag = false;
-  //           lastDistanceMm = distance_mm;
-  //       }
-  //     }
-
-
-  //   } else {
-  //     // 읽기 실패(범위 밖/타임아웃 등)
-  //   }
-  // }
+    const auto& s = detector.state();
+    Serial.printf("d=%u phase=%d min=%u max=%u\n", d, (int)s.phase, s.minv, s.maxv);
+  }
 
   // --- NFC poll (single try with 200ms timeout) ---
-  NfcTag tag;
-  if (nfc.pollOnce(tag)) {
-    Serial.print("[NFC] UID: ");
-    for (uint8_t i = 0; i < tag.uidLen; ++i) {
-      if (i) Serial.print(':');
-      Serial.printf("%02X", tag.uid[i]);
+  uint8_t uid[7] = {0};
+  uint8_t uidLen = 0;
+
+  if (nfc.readOnce(uid, uidLen, 50)) {
+    Serial.print(F("UID: "));
+    for (uint8_t i = 0; i < uidLen; i++) {
+      if (uid[i] < 0x10) Serial.print('0');
+      Serial.print(uid[i], HEX);
+      Serial.print(' ');
     }
-    Serial.print("  tech=");
-    Serial.println(tag.tech);
-    // TODO: 태그 처리 로직
+    Serial.println();
+    delay(500);
+  } else {
+    // 타임아웃 → 계속 폴링
+    delay(50);
   }
 }

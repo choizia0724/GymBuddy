@@ -1,5 +1,5 @@
 #include "wifi_ap.h"
-#include "config.h"
+#include "src/config/config.h"
 #include <WiFi.h>
 
 namespace {

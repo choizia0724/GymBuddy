@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #define RT9532_BAT_EN_PIN 19
-#endif
+
 
 namespace Power {
   void begin(int adcPin, float vref = 3.30f, uint8_t adcBits = 12, float dividerGain = 2.0f);
