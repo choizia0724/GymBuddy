@@ -3,7 +3,7 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 // 통신
-#include "src/net/routes/routes.h"
+#include "src/net/web/web.h"
 #include "src/net/rest/RestSender.h"
 // 설정
 #include "src/config/config.h"
@@ -18,10 +18,6 @@
 #include "src/devices/status_led/status_led.h"
 #include "src/devices/distance/DistanceSensor.h"
 
-
-// -------------------- Web / Auth --------------------
-WebServer server(8080);
-bool isLoggedIn = false;
 
 // -------------------- NFC --------------------
 
@@ -45,7 +41,7 @@ NfcReaderSPI2 nfc(NFC_PINS, NFC_CFG);
 
 // -------------------- Distance Sensor (VL53L0X via I2C) --------------------
 
-TwoWire disWire = TwoWire(0);
+Wire disWire = Wire;
 Adafruit_VL53L0X lox;
 
 constexpr int DIS_SDA_PIN   = 36;
@@ -72,9 +68,9 @@ const uint32_t PRINT_INTERVAL_MS = 50;
 // -------------------- RestSender --------------------
 
 RestSender::Config rsCfg{
-  .host        = "localhost",   // 또는 EC2 도메인/IP
-  .port        = 8080,
-  .basePath    = "/count",      
+  .host        = "isluel.iptime.org",   // 또는 EC2 도메인/IP
+  .port        = 32869,
+  .basePath    = "/api/v2/esp/count",      
   .useHttps    = false,
   .timeoutMs   = 4000,
   .maxRetries  = 2
@@ -136,10 +132,8 @@ void setup() {
   Serial.println("LittleFS formatted successfully");
 
   // --- HTTP Routes ---
-  setupRoutes(server, isLoggedIn);
+  WebServerApp::begin();
   Serial.println("setup Routes Successfully");
-  server.begin();
-  Serial.println("server begin");
 
   // --- Distance Sensor (VL53L0X) ---
   Serial.println("[VL53L0X] init...");
@@ -162,43 +156,48 @@ void setup() {
   Serial.print("SS Pin: ");
   Serial.println(SS);  
 
-  Serial.println(F("[PN532] init... (SPI2)"));
-  if (!nfc.begin()) {
-    Serial.println(F("! PN532 init failed. Check SPI2 wiring/mode/CS."));
-    while (true) { delay(1000); }
-  }
+  // Serial.println(F("[PN532] init... (SPI2)"));
+  // if (!nfc.begin()) {
+  //   Serial.println(F("! PN532 init failed. Check SPI2 wiring/mode/CS."));
+  //   while (true) { delay(1000); }
+  // }
 
-  uint32_t ver = nfc.firmwareVersion();
-  Serial.print(F("PN532 firmware: 0x"));
-  Serial.println(ver, HEX);
-  Serial.println(F("Waiting for ISO14443A card..."));
+  // uint32_t ver = nfc.firmwareVersion();
+  // Serial.print(F("PN532 firmware: 0x"));
+  // Serial.println(ver, HEX);
+  // Serial.println(F("Waiting for ISO14443A card..."));
 
 }
 
 void loop() {
-  // --- HTTP ---
-  server.handleClient();
-
   // --- Serial CLI (Laser) ---
   handleSerialLaserCommand();
   delay(1);
 
   // --- Distance read & touch event (every ~50ms) ---
-   const uint32_t now = millis();
+  const uint32_t now = millis();
   if (now - lastPrintMs < PRINT_INTERVAL_MS) return;
   lastPrintMs = now;
+  const String deviceId = "GymBuddy-Yeongdeungpo-01";
+  const String tagId    = "TestTag-0001";
+  const String isoTs   = String((uint32_t)(time(nullptr)));
 
   uint16_t d;
   if (distanceSensor.read(d)) {
     if (detector.step(d)) {
       const auto& s = detector.state();
-      Serial.printf("Send! stata: %s");
+      Serial.printf("Send! stata: %s", (s.phase == TrendDetector::Phase::Up) ? "Up" : "Down");
       Serial.print("\n");
-      // String json = String("{\"event\":\"pull_release\",\"min\":") + s.minv +
-      //               ",\"max\":" + s.maxv + ",\"last\":" + s.last + "}";
+      String json =
+        String("{\"device_id\":\"") + deviceId +
+        "\",\"tag_id\":\"" + tagId +
+        "\",\"minDistance\":\"" + String(s.minv) +
+        "\",\"maxDistance\":\"" + String(s.maxv) +
+        "\",\"ts\":\"" + isoTs +
+        "\"}";
 
-      // bool ok = sender.post_plain_http(nullptr, 0, "/events", json);
-      // Serial.println(ok ? "POST OK" : "POST FAIL");
+      bool ok = sender.post_plain_http(json);
+      Serial.println(ok ? "POST OK" : "POST FAIL");
     }
 
     const auto& s = detector.state();
@@ -206,20 +205,20 @@ void loop() {
   }
 
   // --- NFC poll (single try with 200ms timeout) ---
-  uint8_t uid[7] = {0};
-  uint8_t uidLen = 0;
+  // uint8_t uid[7] = {0};
+  // uint8_t uidLen = 0;
 
-  if (nfc.readOnce(uid, uidLen, 50)) {
-    Serial.print(F("UID: "));
-    for (uint8_t i = 0; i < uidLen; i++) {
-      if (uid[i] < 0x10) Serial.print('0');
-      Serial.print(uid[i], HEX);
-      Serial.print(' ');
-    }
-    Serial.println();
-    delay(500);
-  } else {
-    // 타임아웃 → 계속 폴링
-    delay(50);
-  }
+  // if (nfc.readOnce(uid, uidLen, 50)) {
+  //   Serial.print(F("UID: "));
+  //   for (uint8_t i = 0; i < uidLen; i++) {
+  //     if (uid[i] < 0x10) Serial.print('0');
+  //     Serial.print(uid[i], HEX);
+  //     Serial.print(' ');
+  //   }
+  //   Serial.println();
+  //   delay(500);
+  // } else {
+  //   // 타임아웃 → 계속 폴링
+  //   delay(50);
+  // }
 }

@@ -36,7 +36,7 @@ PARTCSV="$CORE_DIR/tools/partitions/$SCHEME"
 echo "Using partition: $PARTCSV"
 
 # ===== data/ → littlefs.bin 생성 =====
-[[ -d "./data" ]] || { echo "data/ 폴더가 없습니다."; exit 1; }
+[[ -d "./../../data" ]] || { echo "data/ 폴더가 없습니다."; exit 1; }
 
 # mklittlefs 찾기 (코어 동봉 또는 pip)
 if MKLFS="$(ls -1 ${ARD15}/tools/mklittlefs/*/mklittlefs 2>/dev/null | sort -V | tail -n1)"; then

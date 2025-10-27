@@ -15,6 +15,7 @@ void Config::begin() {
   cached.staPass = prefs.getString("staPass", cached.staPass);
   cached.adminUser = prefs.getString("admU",  cached.adminUser);
   cached.adminPass = prefs.getString("admP",  cached.adminPass);
+  cached.serverUrl = prefs.getString("srvUrl", cached.serverUrl);
   cached.version = prefs.getULong("ver", cached.version);
 }
 
@@ -28,5 +29,6 @@ void Config::save(const AppConfig& cfg) {
   prefs.putString("staPass", cached.staPass);
   prefs.putString("admU",    cached.adminUser);
   prefs.putString("admP",    cached.adminPass);
+  prefs.putString("srvUrl",  cached.serverUrl);
   prefs.putULong ("ver",     cached.version);
 }

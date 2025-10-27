@@ -25,17 +25,18 @@ String RestSender::buildUrl_(const String& path) const {
 }
 
 
-bool RestSender::post_plain_http(const char* host, uint16_t port,
-                     const char* path, const String& json) {
+bool RestSender::post_plain_http(const String& json) {
   WiFiClient net;           // ★ 평문용
   HTTPClient http;
 
-  if (!http.begin(net, host, port, path)) return false;
+  if (!http.begin(net, cfg_.host, cfg_.port, cfg_.basePath)) return false;
 
   http.setTimeout(4000);                     // 4초 타임아웃
   http.addHeader("Content-Type", "application/json");
   int code = http.POST((uint8_t*)json.c_str(), json.length());
-  // String resp = http.getString();         // 필요하면 응답 읽기
+  String resp = http.getString();         // 필요하면 응답 읽기
+
+  Serial.printf("[RestSender] POST %s -> %d\n", cfg_.basePath, resp.length() ? code : -1);
   http.end();
   return (code >= 200 && code < 300);
 }
