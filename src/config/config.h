@@ -13,9 +13,11 @@ struct AppConfig {
   String adminUser  = "admin";
   String adminPass  = "admin";
   // Server
-  String serverUrl  = "";
+  String serverUrl  = "localhost";
+  String port       = "8080";
   // 버전/기타
   uint32_t version  = 0.1;
+  String deviceId   = "GymBuddy-Yeongdeungpo-01";
 };
 
 namespace Config {

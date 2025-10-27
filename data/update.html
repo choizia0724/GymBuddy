@@ -7,8 +7,13 @@
   <body>
     <h2>Firmware Update</h2>
     <form method="POST" action="/update" enctype="multipart/form-data">
-      <input type="file" name="update" />
-      <input type="submit" value="Update" />
+      <input type="file" name="update" accept=".bin" />
+      <input type="submit" value="Update Firmware" />
+    </form>
+    <h2>LittleFS Update (littlefs.bin)</h2>
+    <form method="POST" action="/fsupdate" enctype="multipart/form-data">
+      <input type="file" name="update" accept=".bin" />
+      <input type="submit" value="Update LittleFS" />
     </form>
   </body>
 </html>

@@ -9,28 +9,36 @@
     <form id="cfgForm">
       <fieldset>
         <legend>Access Point</legend>
-        <label>AP SSID <input id="apSsid" name="apSsid" /></label><br />
-        <label
-          >AP Pass <input id="apPass" name="apPass" type="password" /></label
-        ><br />
+        <label>AP SSID</label>
+        <input id="apSsid" name="apSsid" /><br />
+        <label>AP Pass</label>
+        <input id="apPass" name="apPass" type="password" /><br />
       </fieldset>
       <fieldset>
-        <label>STA SSID <input id="staSsid" name="staSsid" /></label><br />
-        <label
-          >STA Pass <input id="staPass" name="staPass" type="password" /></label
-        ><br />
+        <legend>Station</legend>
+        <label>STA SSID</label>
+        <input id="staSsid" name="staSsid" /><br />
+        <label>STA Pass</label>
+        <input id="staPass" name="staPass" type="password" /><br />
       </fieldset>
       <fieldset>
         <legend>Server</legend>
-        <label>Url <input id="serverUrl" name="serverUrl" /></label><br />
+        <label>Url </label>
+        <input id="serverUrl" name="serverUrl" /><br />
+        <label>Port </label>
+        <input id="port" name="port" /><br />
       </fieldset>
       <fieldset>
         <legend>Admin</legend>
-        <label>Admin ID <input id="adminUser" name="adminUser" /></label><br />
-        <label
-          >Admin PW
-          <input id="adminPass" name="adminPass" type="password" /></label
-        ><br />
+        <label>Admin ID</label>
+        <input id="adminUser" name="adminUser" /><br />
+        <label>Admin PW</label>
+        <input id="adminPass" name="adminPass" type="password" /><br />
+      </fieldset>
+      <fieldset>
+        <legend>Others</legend>
+        <label>Device ID</label>
+        <input id="deviceId" name="deviceId" /><br />
       </fieldset>
       <input type="submit" value="Save" />
     </form>
@@ -138,7 +146,10 @@
             staPass: document.getElementById("staPass").value,
             adminUser: document.getElementById("adminUser").value,
             adminPass: document.getElementById("adminPass").value,
+            serverUrl: document.getElementById("serverUrl").value,
+            port: document.getElementById("port").value,
             version: Number(document.getElementById("version").value || 0),
+            deviceId: document.getElementById("deviceId").value,
           };
           const r = await fetch("/api/config", {
             method: "POST",

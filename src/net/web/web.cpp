@@ -183,7 +183,8 @@ namespace {
       }
     });
 
-    server.on("/update", HTTP_POST,
+    server.on("/update", 
+      HTTP_POST, 
       [](AsyncWebServerRequest* req){
         if (!authOK_(req)) return;
         const bool ok = !Update.hasError();
@@ -195,12 +196,42 @@ namespace {
         if (!authed) { if (!authOK_(req)) return; authed = true; }
 
         if (!index) {
-          Serial.printf("OTA: %s\n", filename.c_str());
-          if (!Update.begin()) Update.printError(Serial);
+          Serial.printf("FW OTA: %s\n", filename.c_str());
+          // 펌웨어 파티션 (U_FLASH)로 시작
+          if (!Update.begin(/*UPDATE_SIZE_UNKNOWN*/)) {
+            Update.printError(Serial);
+          }
         }
-        if (Update.write(data, len) != (int)len) {
-          Update.printError(Serial);
+        if (Update.write(data, len) != (int)len) Update.printError(Serial);
+
+        if (final) {
+          if (!Update.end(true)) Update.printError(Serial);
+          authed = false;
         }
+      }
+    );
+    server.on("/fsupdate", 
+      HTTP_POST,
+      [](AsyncWebServerRequest* req){
+        if (!authOK_(req)) return;
+        const bool ok = !Update.hasError();
+        req->send(ok ? 200 : 500, "text/plain", ok ? "OK" : "FAIL");
+        if (ok) { delay(300); ESP.restart(); }
+      },
+      [](AsyncWebServerRequest* req, const String& filename, size_t index, uint8_t* data, size_t len, bool final){
+        static bool authed = false;
+        if (!authed) { if (!authOK_(req)) return; authed = true; }
+
+        if (!index) {
+          Serial.printf("FS OTA: %s\n", filename.c_str());
+          // FS 파티션 대상으로 시작 (ESP32: U_SPIFFS 사용)
+          // 크기를 모르면 UPDATE_SIZE_UNKNOWN로 시작 가능
+          if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)) {
+            Update.printError(Serial);
+          }
+        }
+        if (Update.write(data, len) != (int)len) Update.printError(Serial);
+
         if (final) {
           if (!Update.end(true)) Update.printError(Serial);
           authed = false;

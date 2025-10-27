@@ -16,7 +16,9 @@ void Config::begin() {
   cached.adminUser = prefs.getString("admU",  cached.adminUser);
   cached.adminPass = prefs.getString("admP",  cached.adminPass);
   cached.serverUrl = prefs.getString("srvUrl", cached.serverUrl);
+  cached.port      = prefs.getString("port",    cached.port);
   cached.version = prefs.getULong("ver", cached.version);
+  cached.deviceId = prefs.getString("devId", cached.deviceId);
 }
 
 AppConfig Config::get() { return cached; }
@@ -30,5 +32,7 @@ void Config::save(const AppConfig& cfg) {
   prefs.putString("admU",    cached.adminUser);
   prefs.putString("admP",    cached.adminPass);
   prefs.putString("srvUrl",  cached.serverUrl);
+  prefs.putString("port",     cached.port);
   prefs.putULong ("ver",     cached.version);
+  prefs.putString("devId",   cached.deviceId);
 }
