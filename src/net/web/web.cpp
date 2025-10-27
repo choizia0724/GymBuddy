@@ -217,10 +217,10 @@ void WebServerApp::begin() {
   // 루트: admin.html 있으면 인증 후 서빙, 없으면 상태 문자열
   server.on("/", HTTP_GET, [](AsyncWebServerRequest* req){
     if (!authOK_(req)) return;
-    if (LittleFS.exists("/admin.html")) {
-      req->send(LittleFS, "/admin.html", "text/html");
+    if (LittleFS.exists("/config.html")) {
+      req->send(LittleFS, "/config.html", "text/html");
     } else {
-      req->send(200, "text/plain", "Admin page not found (LittleFS /admin.html).");
+      req->send(200, "text/plain", "Admin page not found (LittleFS /config.html).");
     }
   });
 

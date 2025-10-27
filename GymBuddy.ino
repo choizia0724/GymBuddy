@@ -1,5 +1,4 @@
 #include <WiFi.h>
-#include <WebServer.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 // 통신
@@ -41,7 +40,6 @@ NfcReaderSPI2 nfc(NFC_PINS, NFC_CFG);
 
 // -------------------- Distance Sensor (VL53L0X via I2C) --------------------
 
-Wire disWire = Wire;
 Adafruit_VL53L0X lox;
 
 constexpr int DIS_SDA_PIN   = 36;
@@ -58,7 +56,7 @@ DistanceSensor::Config disCfg{
   .medianN = 3
 };
 
-DistanceSensor distanceSensor(pins, disCfg, disWire);
+DistanceSensor distanceSensor(pins, disCfg, Wire);
 // -------------------- Trend Detector --------------------
 TrendDetector detector; 
 
