@@ -17,7 +17,11 @@
       <fieldset>
         <legend>Station</legend>
         <label>STA SSID</label>
-        <input id="staSsid" name="staSsid" /><br />
+        <select id="staSsid" name="staSsid">
+          <option value="" hidden>스캔 중...</option>
+        </select>
+        <button type="button" id="btnScan">다시 스캔</button>
+        <br />
         <label>STA Pass</label>
         <input id="staPass" name="staPass" type="password" /><br />
       </fieldset>
@@ -163,6 +167,59 @@
             alert("Save failed: " + (await r.text()));
           }
         });
+
+      async function scanWifi() {
+        const sel = document.getElementById("staSsid");
+        const btn = document.getElementById("btnScan");
+        btn.disabled = true;
+        sel.innerHTML = `<option value="" hidden>스캔 중...</option>`;
+        try {
+          const res = await fetch("/api/wifi/scan", { cache: "no-store" });
+          if (!res.ok) throw new Error("scan failed");
+          /** @type {{ssid:string,rssi:number,enc:string,bssid:string}[]} */
+          const list = await res.json();
+
+          // SSID가 같은 항목은 RSSI(신호세기)가 가장 센 것만 남기기
+          const best = new Map();
+          for (const ap of list) {
+            if (!ap.ssid) continue; // 숨김 SSID 제외
+            const have = best.get(ap.ssid);
+            if (!have || ap.rssi > have.rssi) best.set(ap.ssid, ap);
+          }
+          const uniq = Array.from(best.values()).sort(
+            (a, b) => b.rssi - a.rssi
+          );
+
+          sel.innerHTML = "";
+          for (const ap of uniq) {
+            const opt = document.createElement("option");
+            const lock = ap.enc && ap.enc !== "OPEN" ? " 🔒" : "";
+            opt.value = ap.ssid;
+            opt.textContent = `${ap.ssid}${lock} (${ap.rssi} dBm)`;
+            sel.appendChild(opt);
+          }
+          // 목록 없으면 수동 입력 옵션 제공
+          if (!sel.options.length) {
+            const o = document.createElement("option");
+            o.value = "";
+            o.textContent = "주변에서 SSID를 찾지 못함";
+            sel.appendChild(o);
+          }
+        } catch (e) {
+          sel.innerHTML = "";
+          const o = document.createElement("option");
+          o.value = "";
+          o.textContent = "스캔 실패";
+          sel.appendChild(o);
+          console.error(e);
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      document.getElementById("btnScan").addEventListener("click", scanWifi);
+      // 페이지 로드시 자동 스캔
+      window.addEventListener("DOMContentLoaded", scanWifi);
     </script>
   </body>
 </html>

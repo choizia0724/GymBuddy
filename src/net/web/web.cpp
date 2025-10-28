@@ -32,6 +32,61 @@ namespace {
     return true;
   }
 
+  static const char* encToStr(wifi_auth_mode_t m) {
+    switch (m) {
+      case WIFI_AUTH_OPEN: return "OPEN";
+      case WIFI_AUTH_WEP: return "WEP";
+      case WIFI_AUTH_WPA_PSK: return "WPA_PSK";
+      case WIFI_AUTH_WPA2_PSK: return "WPA2_PSK";
+      case WIFI_AUTH_WPA_WPA2_PSK: return "WPA_WPA2_PSK";
+      case WIFI_AUTH_WPA2_ENTERPRISE: return "WPA2_ENT";
+      case WIFI_AUTH_WPA3_PSK: return "WPA3_PSK";
+      case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2_WPA3_PSK";
+      default: return "UNKNOWN";
+    }
+  }
+  void setupWifiScanRoute() {
+    // AP 페이지에서 스캔 가능하도록 AP+STA 모드 권장
+    WiFi.mode(WIFI_AP_STA); // 이미 설정됐으면 중복 호출 무해
+
+    server.on("/api/wifi/scan", HTTP_GET, [](AsyncWebServerRequest* req){
+      if (!authOK_(req)) return;
+
+      // 스캔 실행 (비동기 원하면 true, 여기선 간단히 동기)
+      int n = WiFi.scanNetworks(/*async=*/false, /*show_hidden=*/false);
+
+      // 스트림 응답 시작
+      AsyncResponseStream* resp = req->beginResponseStream("application/json");
+      resp->print('[');
+
+      if (n > 0) {
+        bool first = true;
+        for (int i = 0; i < n; ++i) {
+          String ssid = WiFi.SSID(i);
+          int32_t rssi = WiFi.RSSI(i);
+          wifi_auth_mode_t enc = WiFi.encryptionType(i);
+          String bssid = WiFi.BSSIDstr(i); // "aa:bb:cc:dd:ee:ff"
+
+          // 숨김 SSID는 빈 문자열 → 프론트에서 제외하므로 그대로 내려도 OK
+          // JSON 한 항목 직렬화
+          StaticJsonDocument<256> doc;
+          doc["ssid"]  = ssid;
+          doc["rssi"]  = rssi;
+          doc["enc"]   = encToStr(enc);
+          doc["bssid"] = bssid;
+
+          if (!first) resp->print(',');
+          first = false;
+          serializeJson(doc, *resp);
+        }
+        // 스캔 결과 캐시 지우기(선택)
+        WiFi.scanDelete();
+      }
+      resp->print(']');
+      req->send(resp);
+    });
+  }
+
   void applyAndSaveConfig_(const AppConfig& in) {
     AppConfig cur = Config::get();
 
