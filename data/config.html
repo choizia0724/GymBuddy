@@ -1,8 +1,36 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta charset="UTF-8" />
     <title>Config</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, ,initial-scale=1.0" />
+
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      fieldset {
+        margin-bottom: 15px;
+        padding: 10px;
+      }
+      label {
+        display: inline-block;
+        width: 100px;
+        margin-bottom: 5px;
+      }
+      input,
+      select {
+        width: 200px;
+        margin-bottom: 5px;
+      }
+      button {
+        margin-left: 5px;
+      }
+    </style>
   </head>
   <body>
     <h2>Configuration</h2>
@@ -46,89 +74,8 @@
       </fieldset>
       <input type="submit" value="Save" />
     </form>
-    <section>
-      <h3>Laser Control</h3>
-      <p>Current: <span id="laserStatus">--</span></p>
-      <button type="button" onclick="laserCommand('on')">Laser On</button>
-      <button type="button" onclick="laserCommand('off')">Laser Off</button>
-      <form id="laserForm">
-        <label>Frequency (Hz, 2000-5000)</label>
-        <input
-          type="number"
-          id="laserFreq"
-          name="freq"
-          min="2000"
-          max="5000"
-          value="2000"
-          required
-        />
-        <label>Duty (%)</label>
-        <input
-          type="number"
-          id="laserDuty"
-          name="duty"
-          min="0"
-          max="100"
-          value="70"
-          required
-        />
-        <button type="submit">Apply</button>
-      </form>
-    </section>
     <a href="/update">Go to OTA</a>
     <script>
-      async function refreshLaserStatus() {
-        try {
-          const res = await fetch("/laser/status");
-          if (!res.ok) throw new Error("status " + res.status);
-          const data = await res.json();
-          document.getElementById(
-            "laserStatus"
-          ).textContent = `${data.freq} Hz / ${data.duty}%`;
-          document.getElementById("laserFreq").value = data.freq;
-          document.getElementById("laserDuty").value = data.duty;
-        } catch (err) {
-          document.getElementById("laserStatus").textContent = "Unavailable";
-          console.error(err);
-        }
-      }
-
-      async function laserCommand(action) {
-        try {
-          const res = await fetch(`/laser/${action}`, { method: "POST" });
-          if (!res.ok) throw new Error("status " + res.status);
-          await refreshLaserStatus();
-        } catch (err) {
-          alert("Failed to toggle laser: " + err.message);
-        }
-      }
-
-      document
-        .getElementById("laserForm")
-        .addEventListener("submit", async (event) => {
-          event.preventDefault();
-          const freq = document.getElementById("laserFreq").value;
-          const duty = document.getElementById("laserDuty").value;
-          try {
-            const res = await fetch("/laser/set", {
-              method: "POST",
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-              body: `freq=${encodeURIComponent(freq)}&duty=${encodeURIComponent(
-                duty
-              )}`,
-            });
-            if (!res.ok) {
-              const text = await res.text();
-              throw new Error(text || "status " + res.status);
-            }
-            await refreshLaserStatus();
-          } catch (err) {
-            alert("Failed to update laser: " + err.message);
-          }
-        });
-
-      refreshLaserStatus();
-
       (async () => {
         const r = await fetch("/api/config");
         if (!r.ok) return;

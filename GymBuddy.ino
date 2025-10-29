@@ -6,7 +6,7 @@
 #include "src/net/rest/RestSender.h"
 // 설정
 #include "src/config/config.h"
-#include "src/devices/nfc/NfcReaderSPI.h"
+// #include "src/devices/nfc/NfcReaderSPI.h"
 // Up Down 트렌드 감지
 #include "src/app/trend/TrendDetector.h"
 // laser Cli
@@ -16,27 +16,19 @@
 #include "src/devices/power/power.h"
 #include "src/devices/status_led/status_led.h"
 #include "src/devices/distance/DistanceSensor.h"
-
+#include "src/devices/nfc/NfcReaderUart.h"
 
 // -------------------- NFC --------------------
 
-constexpr int NFC_SCK  = 12;
-constexpr int NFC_MISO = 13;
-constexpr int NFC_MOSI = 11;
-constexpr int NFC_SS   = 10;
-constexpr int NFC_RST  = 9;   // optional, 없으면 -1
-constexpr int NFC_IRQ  = 14;  // optional, 없으면 -1
+constexpr int NFC_RX_PIN = 10; // ESP32 RX  <- PN532 TX
+constexpr int NFC_TX_PIN = 11; // ESP32 TX  -> PN532 RX
+constexpr int NFC_RST_PIN = -1; // 별도 제어 없으면 -1
 
-NfcReaderSPI2::Pins NFC_PINS{
-  NFC_SCK, NFC_MISO, NFC_MOSI, NFC_SS, NFC_RST, NFC_IRQ
-};
-
-NfcReaderSPI2::Config NFC_CFG{
-  1000000 // 1MHz
-};
+NfcReaderUart::Pins  nfcPins{NFC_RX_PIN, NFC_TX_PIN, NFC_RST_PIN};
+NfcReaderUart::Config nfcCfg;
 
 // 전역 리더 인스턴스
-NfcReaderSPI2 nfc(NFC_PINS, NFC_CFG);
+NfcReaderUart nfcUart(nfcPins, nfcCfg);
 
 // -------------------- Distance Sensor (VL53L0X via I2C) --------------------
 
@@ -144,32 +136,21 @@ void setup() {
   Serial.println("VL53L0X ready");
 
  // --- NFC ---
-
-  Serial.print("MOSI Pin: ");
-  Serial.println(MOSI);
-  Serial.print("MISO Pin: ");
-  Serial.println(MISO);
-  Serial.print("SCK Pin: ");
-  Serial.println(SCK);
-  Serial.print("SS Pin: ");
-  Serial.println(SS);  
-
-  // Serial.println(F("[PN532] init... (SPI2)"));
-  // if (!nfc.begin()) {
-  //   Serial.println(F("! PN532 init failed. Check SPI2 wiring/mode/CS."));
-  //   while (true) { delay(1000); }
-  // }
-
-  // uint32_t ver = nfc.firmwareVersion();
-  // Serial.print(F("PN532 firmware: 0x"));
-  // Serial.println(ver, HEX);
-  // Serial.println(F("Waiting for ISO14443A card..."));
+ Serial.println("[INFO] PN532 HSU(UART) init...");
+  if (!nfcUart.begin()) {
+    Serial.println("! PN532 HSU init failed (DIP=00, RX/TX 교차, 전원 확인)");
+  } else {
+    uint32_t ver;
+    if (nfcUart.getFirmware(ver)) {
+      Serial.printf("PN532 FW: 0x%08lX\n", (unsigned long)ver);
+    }
+  }
 
 }
 
 void loop() {
   // --- Serial CLI (Laser) ---
-  handleSerialLaserCommand();
+  //handleSerialLaserCommand();
   delay(1);
 
   // --- Distance read & touch event (every ~50ms) ---
@@ -202,21 +183,19 @@ void loop() {
     Serial.printf("d=%u phase=%d min=%u max=%u\n", d, (int)s.phase, s.minv, s.maxv);
   }
 
-  // --- NFC poll (single try with 200ms timeout) ---
-  // uint8_t uid[7] = {0};
-  // uint8_t uidLen = 0;
-
-  // if (nfc.readOnce(uid, uidLen, 50)) {
-  //   Serial.print(F("UID: "));
-  //   for (uint8_t i = 0; i < uidLen; i++) {
-  //     if (uid[i] < 0x10) Serial.print('0');
-  //     Serial.print(uid[i], HEX);
-  //     Serial.print(' ');
-  //   }
-  //   Serial.println();
-  //   delay(500);
-  // } else {
-  //   // 타임아웃 → 계속 폴링
-  //   delay(50);
-  // }
+  // --- NFC poll ---
+  uint8_t uid[7]; 
+  uint8_t uidLen=0;
+  if (nfcUart.readUID(uid, uidLen)) {
+    Serial.print("[TAG] UID: ");
+    for (uint8_t i=0; i<uidLen; ++i) {
+      if (uid[i] < 0x10) Serial.print('0');
+      Serial.print(uid[i], HEX);
+      Serial.print(' ');
+    }
+    Serial.println();
+    delay(500);
+  } else {
+    delay(50);
+  }
 }

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ===== User args =====
-PORT="/dev/cu.usbmodem5AE60253511"
+PORT="/dev/tty.usbmodem5AE60253511"
 BAUD="115200"
 FQBN="esp32:esp32:esp32s3"           # 필요 시 :USBMode=default,CDCOnBoot=default 등 추가
 SCHEME_FILE="default.csv"            # CSV 파일명 (오탈자 수정!)
@@ -88,8 +88,8 @@ arduino-cli upload -p "$PORT" --fqbn "$FQBN" --input-file "$APP_BIN" --verify
 DATA_DIR="$SKETCH_DIR/data"
 [[ -d "$DATA_DIR" ]] || { echo "data/ 폴더가 없습니다: $DATA_DIR"; exit 1; }
 
-OFFSET_HEX=$(awk -F, 'tolower($1)~/(littlefs|spiffs)/{print $4; exit}' "$PARTCSV")
-SIZE_HEX=$(awk   -F, 'tolower($1)~/(littlefs|spiffs)/{print $5; exit}' "$PARTCSV")
+OFFSET_HEX=$(awk -F, 'tolower($1)~/(littlefs|spiffs)/{o=$4; gsub(/[[:space:]]/,"",o); print o; exit}' "$PARTCSV")
+SIZE_HEX=$(awk   -F, 'tolower($1)~/(littlefs|spiffs)/{s=$5; gsub(/[[:space:]]/,"",s); print s; exit}' "$PARTCSV")
 [[ -n "${OFFSET_HEX:-}" && -n "${SIZE_HEX:-}" ]] || { echo "CSV에 LittleFS/SPIFFS 항목이 없습니다."; exit 1; }
 
 SIZE_DEC=$(( SIZE_HEX ))

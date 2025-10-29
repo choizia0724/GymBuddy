@@ -340,6 +340,9 @@ void WebServerApp::begin() {
   // OTA
   registerHttpOta();
 
+  // Scan Wifi
+  setupWifiScanRoute();
+
   // Deprecated endpoint
   server.on("/save", HTTP_ANY, [](AsyncWebServerRequest* req){
     req->send(410, "text/plain", "Deprecated. Use POST /api/config (JSON).");
